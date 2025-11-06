@@ -66,7 +66,7 @@ struct ODriveStatus; // hack to prevent teensy compile error
 /* Teensy */
 
 #ifdef IS_TEENSY_BUILTIN
-
+void onCanMessage(const CanMsg& msg);
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can_intf;
 
 bool setupCan() {
