@@ -4,7 +4,6 @@
 // Documentation for this example can be found here:
 // https://docs.odriverobotics.com/v/latest/guides/arduino-can-guide.html
 
-
 /* Configuration of example sketch -------------------------------------------*/
 
 // CAN bus baudrate. Make sure this matches for every device on the bus
@@ -13,59 +12,17 @@
 // ODrive node_id for odrv0
 #define ODRV0_NODE_ID 0
 
-// Uncomment below the line that corresponds to your hardware.
 // See also "Board-specific settings" to adapt the details for your hardware setup.
 
-#define IS_TEENSY_BUILTIN // Teensy boards with built-in CAN interface (e.g. Teensy 4.1). See below to select which interface to use.
-// #define IS_ARDUINO_BUILTIN // Arduino boards with built-in CAN interface (e.g. Arduino Uno R4 Minima)
-// #define IS_MCP2515 // Any board with external MCP2515 based extension module. See below to configure the module.
-
-
 /* Board-specific includes ---------------------------------------------------*/
-
-#if defined(IS_TEENSY_BUILTIN) + defined(IS_ARDUINO_BUILTIN) + defined(IS_MCP2515) != 1
-#warning "Select exactly one hardware option at the top of this file."
-
-#if CAN_HOWMANY > 0 || CANFD_HOWMANY > 0
-#define IS_ARDUINO_BUILTIN
-#warning "guessing that this uses HardwareCAN"
-#else
-#error "cannot guess hardware version"
-#endif
-
-#endif
-
-#ifdef IS_ARDUINO_BUILTIN
-// See https://github.com/arduino/ArduinoCore-API/blob/master/api/HardwareCAN.h
-// and https://github.com/arduino/ArduinoCore-renesas/tree/main/libraries/Arduino_CAN
-
-#include <Arduino_CAN.h>
-#include <ODriveHardwareCAN.hpp>
-#endif // IS_ARDUINO_BUILTIN
-
-#ifdef IS_MCP2515
-// See https://github.com/sandeepmistry/arduino-CAN/
-#include "MCP2515.h"
-#include "ODriveMCPCAN.hpp"
-#endif // IS_MCP2515
-
-#ifdef IS_TEENSY_BUILTIN
 // See https://github.com/tonton81/FlexCAN_T4
 // clone https://github.com/tonton81/FlexCAN_T4.git into /src
 #include <FlexCAN_T4.h>
 #include "ODriveFlexCAN.hpp"
 struct ODriveStatus; // hack to prevent teensy compile error
-#endif // IS_TEENSY_BUILTIN
-
-
-
 
 /* Board-specific settings ---------------------------------------------------*/
 
-
-/* Teensy */
-
-#ifdef IS_TEENSY_BUILTIN
 void onCanMessage(const CanMsg& msg);
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can_intf;
 
@@ -78,64 +35,6 @@ bool setupCan() {
   can_intf.onReceive(onCanMessage);
   return true;
 }
-
-#endif // IS_TEENSY_BUILTIN
-
-
-/* MCP2515-based extension modules -*/
-
-#ifdef IS_MCP2515
-
-MCP2515Class& can_intf = CAN;
-
-// chip select pin used for the MCP2515
-#define MCP2515_CS 10
-
-// interrupt pin used for the MCP2515
-// NOTE: not all Arduino pins are interruptable, check the documentation for your board!
-#define MCP2515_INT 2
-
-// freqeuncy of the crystal oscillator on the MCP2515 breakout board. 
-// common values are: 16 MHz, 12 MHz, 8 MHz
-#define MCP2515_CLK_HZ 8000000
-
-
-static inline void receiveCallback(int packet_size) {
-  if (packet_size > 8) {
-    return; // not supported
-  }
-  CanMsg msg = {.id = (unsigned int)CAN.packetId(), .len = (uint8_t)packet_size};
-  CAN.readBytes(msg.buffer, packet_size);
-  onCanMessage(msg);
-}
-
-bool setupCan() {
-  // configure and initialize the CAN bus interface
-  CAN.setPins(MCP2515_CS, MCP2515_INT);
-  CAN.setClockFrequency(MCP2515_CLK_HZ);
-  if (!CAN.begin(CAN_BAUDRATE)) {
-    return false;
-  }
-
-  CAN.onReceive(receiveCallback);
-  return true;
-}
-
-#endif // IS_MCP2515
-
-
-/* Arduinos with built-in CAN */
-
-#ifdef IS_ARDUINO_BUILTIN
-
-HardwareCAN& can_intf = CAN;
-
-bool setupCan() {
-  return can_intf.begin((CanBitRate)CAN_BAUDRATE);
-}
-
-#endif
-
 
 /* Example sketch ------------------------------------------------------------*/
 
@@ -183,7 +82,6 @@ void setup() {
     delay(100);
   }
   delay(200);
-
 
   Serial.println("Starting ODriveCAN demo");
 
@@ -236,7 +134,6 @@ void setup() {
       pumpEvents(can_intf);
     }
   }
-
   Serial.println("ODrive running!");
 }
 
