@@ -1,5 +1,8 @@
 #include <Arduino.h>
+#include <FlexCAN_T4.h>
+#include "main.h"
 #include "ODriveCAN.h"
+#include "ODriveFlexCAN.hpp"
 
 // Documentation for this example can be found here:
 // https://docs.odriverobotics.com/v/latest/guides/arduino-can-guide.html
@@ -41,13 +44,6 @@ bool setupCan() {
 // Instantiate ODrive objects
 ODriveCAN odrv0(wrap_can_intf(can_intf), ODRV0_NODE_ID); // Standard CAN message ID
 ODriveCAN* odrives[] = {&odrv0}; // Make sure all ODriveCAN instances are accounted for here
-
-struct ODriveUserData {
-  Heartbeat_msg_t last_heartbeat;
-  bool received_heartbeat = false;
-  Get_Encoder_Estimates_msg_t last_feedback;
-  bool received_feedback = false;
-};
 
 // Keep some application-specific user data for every ODrive.
 ODriveUserData odrv0_user_data;
