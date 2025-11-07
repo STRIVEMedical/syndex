@@ -1,7 +1,7 @@
 #include <Arduino.h>
+#include "ODriveCAN.h"
 #include <FlexCAN_T4.h>
 #include "main.h"
-#include "ODriveCAN.h"
 #include "ODriveFlexCAN.hpp"
 
 // Documentation for this example can be found here:
