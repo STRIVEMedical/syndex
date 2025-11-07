@@ -20,8 +20,6 @@
 /* Board-specific includes ---------------------------------------------------*/
 // See https://github.com/tonton81/FlexCAN_T4
 // clone https://github.com/tonton81/FlexCAN_T4.git into /src
-#include <FlexCAN_T4.h>
-#include "ODriveFlexCAN.hpp"
 struct ODriveStatus; // hack to prevent teensy compile error
 
 /* Board-specific settings ---------------------------------------------------*/
