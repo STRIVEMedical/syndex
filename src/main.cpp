@@ -4,9 +4,6 @@
 #include "main.h"
 #include "ODriveFlexCAN.hpp"
 
-// Documentation for this example can be found here:
-// https://docs.odriverobotics.com/v/latest/guides/arduino-can-guide.html
-
 /* Configuration of example sketch -------------------------------------------*/
 
 // CAN bus baudrate. Make sure this matches for every device on the bus
@@ -15,16 +12,10 @@
 // ODrive node_id for odrv0
 #define ODRV0_NODE_ID 0
 
-// See also "Board-specific settings" to adapt the details for your hardware setup.
-
-/* Board-specific includes ---------------------------------------------------*/
-// See https://github.com/tonton81/FlexCAN_T4
-// clone https://github.com/tonton81/FlexCAN_T4.git into /src
 struct ODriveStatus; // hack to prevent teensy compile error
 
 /* Board-specific settings ---------------------------------------------------*/
 
-void onCanMessage(const CanMsg& msg);
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can_intf;
 
 bool setupCan() {
@@ -38,7 +29,6 @@ bool setupCan() {
 }
 
 /* Example sketch ------------------------------------------------------------*/
-
 // Instantiate ODrive objects
 ODriveCAN odrv0(wrap_can_intf(can_intf), ODRV0_NODE_ID); // Standard CAN message ID
 ODriveCAN* odrives[] = {&odrv0}; // Make sure all ODriveCAN instances are accounted for here
