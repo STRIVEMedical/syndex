@@ -1,93 +1,111 @@
-// #include <Arduino.h>
 #include <Wire.h>
-#include "TCA9548.h"
+
+#define TCA_ADDR 0x70
+#define AS5600_ADDR 0x36
+#define ANGLE_HIGH  0x0E
+#define ANGLE_LOW   0x0F
+
+float zeroOffset[2] = {0, 0};   // per-sensor zeroing
+long turns[2] = {0, 0};         // multi-turn tracking
+int lastRaw[2] = {0, 0};
 
 /*
-Using I2C #1:
-SCL: Pin 18 -- A4
-SDA: Pin 19 -- A5
+Selects channel `ch` on the TCA9548A I2C multiplexer by writing a bitmask 
+to its control register (only one channel active at a time)
 */
-
-#define I2C_BUS Wire1           // Use I2C1
-#define TCA_ADDR 0x70           // Default I2C address of TCA9548A
-
-TCA9548 MP(0x70);
-uint8_t channels = 0;
-
-
-// Helper: Select TCA9548A channel (0–7)
-void tcaSelect(uint8_t channel) {
-    if (channel > 7) return;
-    I2C_BUS.beginTransmission(TCA_ADDR);
-    I2C_BUS.write(1 << channel);
-    I2C_BUS.endTransmission();
+void tcaSelect(uint8_t ch) {
+  Wire.beginTransmission(TCA_ADDR);
+  Wire.write(1 << ch);
+  Wire.endTransmission();
 }
 
-// Example: Read 1 byte from a device on a selected channel
-uint8_t readFromDevice(uint8_t channel, uint8_t deviceAddr, uint8_t registerAddr) {
-    tcaSelect(channel);  // Select MUX channel
-    I2C_BUS.beginTransmission(deviceAddr);
-    I2C_BUS.write(registerAddr);
-    I2C_BUS.endTransmission(false);  // Restart for read
+/*
+Reads the 12-bit raw angle value from the AS5600 encoder by requesting 
+two bytes (high and low) from angle registers 0x0E and 0x0F
+*/
+uint16_t readRawAS5600() {
+  Wire.beginTransmission(AS5600_ADDR);
+  Wire.write(ANGLE_HIGH);
+  Wire.endTransmission(false);
 
-    I2C_BUS.requestFrom(deviceAddr, (uint8_t)1);
-    if (I2C_BUS.available()) {
-        return I2C_BUS.read();
-    }
-    return 0xFF; // Indicate error
+  Wire.requestFrom(AS5600_ADDR, 2);
+  uint8_t high = Wire.read();
+  uint8_t low  = Wire.read();
+  return (high << 8) | low;
 }
 
-void setup() {
-    Serial.begin(115200);
-    // I2C_BUS.begin();  // Initialize I2C1
+/*
+Converts a raw AS5600 value (0–4095) to an absolute angle in degrees,
+accounting for full rotation wraps (multi-turn) and applying a zero offset
+*/
+float computeAngle(int sensorID, uint16_t raw) {
 
-    Serial.begin(115200);
-    Serial.println();
-    Serial.println(__FILE__);
-    Serial.print("TCA9548_LIB_VERSION: ");
-    Serial.println(TCA9548_LIB_VERSION);
-    Serial.println();
+  // Detect forward wrap
+  if (raw < 100 && lastRaw[sensorID] > 4000)
+    turns[sensorID] += 1;
 
-    Wire.begin();
-    if (MP.begin() == false)
-    {
-        Serial.println("COULD NOT CONNECT TO MULTIPLEXER");
-    }
+  // Detect backward wrap
+  if (raw > 4000 && lastRaw[sensorID] < 100)
+    turns[sensorID] -= 1;
 
-    channels = MP.channelCount();
-    Serial.print("CHAN:\t");
-    Serial.println(MP.channelCount());
+  lastRaw[sensorID] = raw;
 
-    //  adjust address range to your needs.
-    for (uint8_t addr = 60; addr < 70; addr++)
-    {
-        if (addr % 10 == 0) Serial.println();
-        Serial.print(addr);
-        Serial.print("\t");
-        Serial.print(MP.find(addr), BIN);
-        Serial.println();
-    }
+  float angle = (raw * 360.0f / 4096.0f) + (turns[sensorID] * 360.0f);
 
-    Serial.println("done...");
-
-
-    // uint8_t channel = 2;
-    // uint8_t devAddr = 0x68;       // Example: IMU or RTC
-    // uint8_t regAddr = 0x75;       // Example: WHO_AM_I register for MPU6050
-
-    // uint8_t data = readFromDevice(channel, devAddr, regAddr);
-    // Serial.printf("Read 0x%02X from device 0x%02X on channel %u\n", data, devAddr, channel);
+  angle -= zeroOffset[sensorID];
+  return angle;
 }
 
-void loop() {
-    // Empty or polling logic
+/*
+Initializes I2C communication and sets up the serial interface
+for debugging or streaming encoder data to a host
+*/
+void setupI2C() {
+  Serial.begin(115200);
+  Wire.begin();
+  delay(300);
+
+  Serial.println("AS5600 Multi-Sensor Reader Ready");
 }
 
-int main() {
-    setup();
-
-    while (1) {
-        
+/* Main loop:
+   - Listens for a zeroing command ('z') from the host over serial and resets offsets and turn counters
+   - Sequentially selects each AS5600 sensor via the TCA9548A mux
+   - Reads raw angle data, computes absolute angle with multi-turn tracking
+   - Prints device header and both angle values to serial for host parsing
+*/
+void loop()
+{
+  // Handle zero request from PC
+  if (Serial.available()) {
+    char c = Serial.read();
+    if (c == 'z') {
+      zeroOffset[0] = 0;
+      zeroOffset[1] = 0;
+      turns[0] = turns[1] = 0;
+      Serial.println("Zeroed!");
     }
-    return 0;
+  }
+
+  // -------- SENSOR 0 --------
+  tcaSelect(0);
+  delayMicroseconds(500);
+  uint16_t raw0 = readRawAS5600();
+  float angle0 = computeAngle(0, raw0);
+
+  // -------- SENSOR 1 --------
+  tcaSelect(1);
+  delayMicroseconds(500);
+  uint16_t raw1 = readRawAS5600();
+  float angle1 = computeAngle(1, raw1);
+
+  // Output to Python
+  Serial.println("I2C READY");
+  Serial.print("CH0: ");
+  Serial.println(angle0, 2);
+
+  Serial.print("CH1: ");
+  Serial.println(angle1, 2);
+
+  delay(5);
 }
