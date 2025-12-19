@@ -104,8 +104,16 @@ void loop()
   Serial.print("CH0: ");
   Serial.println(angle0, 2);
 
+  //Prints number of Revolutions for encoder 0
+  Serial.print("REV0: ");
+  Serial.println(turns[0]);
+
   Serial.print("CH1: ");
   Serial.println(angle1, 2);
+
+  //Prints number of Revolutions for encoder 1
+  Serial.print("REV1: ");
+  Serial.println(turns[1]);
 
   delay(5);
 }
