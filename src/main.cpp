@@ -99,6 +99,7 @@ void setup() {
   Serial.println("Both ODrives Found!");
   Serial.println("CAN READY");
 
+  // TODO: add this to odrive file functionality
   // Helper lambda: enable closed-loop mode
   auto enable_closed_loop = [&](ODriveCAN &odrv, ODriveUserData &data) {
     while (data.last_heartbeat.Axis_State != 
