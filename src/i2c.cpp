@@ -1,6 +1,11 @@
 #include <Wire.h>
 #include "i2c.h"
 
+// Define globals declared in i2c.h
+float zeroOffset[2] = {0, 0};   // per-sensor zeroing
+long turns[2] = {0, 0};         // multi-turn tracking
+int lastRaw[2] = {0, 0};
+
 /*
 Selects channel `ch` on the TCA9548A I2C multiplexer by writing a bitmask 
 to its control register (only one channel active at a time)
@@ -60,52 +65,4 @@ void setupI2C() {
   Serial.println("AS5600 Multi-Sensor Reader Ready");
 }
 
-/* Main loop:
-   - Listens for a zeroing command ('z') from the host over serial and resets offsets and turn counters
-   - Sequentially selects each AS5600 sensor via the TCA9548A mux
-   - Reads raw angle data, computes absolute angle with multi-turn tracking
-   - Prints device header and both angle values to serial for host parsing
-*/
-void loop()
-{
-  // Handle zero request from PC
-  if (Serial.available()) {
-    char c = Serial.read();
-    if (c == 'z') {
-      zeroOffset[0] = 0;
-      zeroOffset[1] = 0;
-      turns[0] = turns[1] = 0;
-      Serial.println("Zeroed!");
-    }
-  }
-
-  // -------- SENSOR 0 --------
-  tcaSelect(0);
-  delayMicroseconds(500);
-  uint16_t raw0 = readRawAS5600();
-  float angle0 = computeAngle(0, raw0);
-
-  // -------- SENSOR 1 --------
-  tcaSelect(1);
-  delayMicroseconds(500);
-  uint16_t raw1 = readRawAS5600();
-  float angle1 = computeAngle(1, raw1);
-
-  // Output to Python
-  Serial.println("I2C READY");
-  Serial.print("CH0: ");
-  Serial.println(angle0, 2);
-
-  //Prints number of Revolutions for encoder 0
-  Serial.print("REV0: ");
-  Serial.println(turns[0]);
-
-  Serial.print("CH1: ");
-  Serial.println(angle1, 2);
-
-  //Prints number of Revolutions for encoder 1
-  Serial.print("REV1: ");
-  Serial.println(turns[1]);
-
-  delay(5);
-}
+// loop() moved to src/main.cpp so the sketch has a single owner

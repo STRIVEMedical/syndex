@@ -5,6 +5,7 @@
 #include "odrive.h"
 #include <FlexCAN_T4.h>
 #include "ODriveFlexCAN.hpp"
+#include "i2c.h"
 
 bool setupCan() {
   can_intf.begin();
@@ -53,8 +54,6 @@ void setup() {
   Serial.begin(115200);
   delay(200);
 
-  Serial.println("Starting Dual ODrive CAN Demo");
-
   // Register callbacks
   odrv0.onStatus(onHeartbeat, &odrv0_user_data);
   odrv0.onFeedback(onFeedback, &odrv0_user_data);
@@ -76,6 +75,9 @@ void setup() {
   }
   Serial.println("Both ODrives Found!");
   Serial.println("CAN READY");
+
+  // Initialize I2C sensors (moved loop is in main.cpp)
+  setupI2C();
 
   Serial.println("Enabling Closed Loop Control...");
   enable_closed_loop(odrv0, odrv0_user_data);

@@ -1,3 +1,6 @@
+#ifndef USB_H
+#define USB_H
+
 
 // USB Communication vvv 
 
@@ -123,3 +126,5 @@ private:
     return 0x0000; // TO DO: Define and implement CRC algorithm
   }
 };
+
+#endif // USB_H

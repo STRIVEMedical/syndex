@@ -1,3 +1,6 @@
+#ifndef ODRIVE_H
+#define ODRIVE_H
+
 #include <Arduino.h>
 #include "ODriveCAN.h"
 #include <FlexCAN_T4.h>
@@ -71,3 +74,5 @@ void setup();
 Helper to transition an ODrive into closed-loop control.
 */
 void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data);
+
+#endif // ODRIVE_H
