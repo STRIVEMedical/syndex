@@ -1,5 +1,5 @@
 #include <Wire.h>
-#include <i2c.h>
+#include "i2c.h"
 
 /*
 Selects channel `ch` on the TCA9548A I2C multiplexer by writing a bitmask 
