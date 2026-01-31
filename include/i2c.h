@@ -6,9 +6,9 @@
 #define ANGLE_HIGH  0x0E
 #define ANGLE_LOW   0x0F
 
-extern float zeroOffset[2];   // per-sensor zeroing
-extern long turns[2];         // multi-turn tracking
-extern int lastRaw[2];
+extern float zeroOffset[7];   // per-sensor zeroing
+extern long turns[7];         // multi-turn tracking
+extern int lastRaw[7];
 
 
 void tcaSelect(uint8_t ch);
