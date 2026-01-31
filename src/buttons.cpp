@@ -7,34 +7,29 @@ namespace buttonPins {
     button_t toolSelect    = {16, INPUT_PULLUP, HIGH, HIGH};
 }
 
-class Buttons {
-    void setup() {
-        buttonInit(&buttonPins::powerButton);
-        buttonInit(&buttonPins::autoHoming);
-        buttonInit(&buttonPins::triggerButton);
-        buttonInit(&buttonPins::toolSelect);
-    }
+void buttonInit(button_t* b) {
+    pinMode(b->pin, b->io);
+    b->buttonState = digitalRead(b->pin);
+    b->lastButtonState = b->buttonState;
 }
 
-void pinSetup(button_t* b) {
-    pinMode(b->pin, b->io);
-}
+void Buttons::setup() {
+    buttonInit(&buttonPins::powerButton);
+    buttonInit(&buttonPins::autoHoming);
+    buttonInit(&buttonPins::triggerButton);
+    buttonInit(&buttonPins::toolSelect);
+};
 
 void buttonDetect(button_t* b)                     
 {
   if (digitalRead(b->pin) == LOW) {
-    Serial.println("Pin %d button pressed", b.pin)
+    Serial.print("\nPin button pressed: ");
+    Serial.print(b->pin);
   }
   delay(100);
 }
 
 void buttonUpdate(button_t* b) {
-    b->lastState = b->state;
-    b->state = digitalRead(b->pin);
-}
-
-void buttonInit(button_t* b) {
-    pinMode(b->pin, b->mode);
-    b->state = digitalRead(b->pin);
-    b->lastState = b->state;
+    b->lastButtonState = b->buttonState;
+    b->buttonState = digitalRead(b->pin);
 }

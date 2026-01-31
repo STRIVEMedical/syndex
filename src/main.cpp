@@ -1,12 +1,22 @@
-#include <Arduino.h>
-#include <Wire.h>
-#include "i2c.h"
+#include "main.h"
+
+void setup() {
+  Buttons::setup();
+  LED::setup();
+  ONToggleLED(&LED::powerLED);
+  ONToggleLED(&LED::dataLED);
+}
 
 /*
 Main loop moved here from i2c.cpp so this file is the sketch entry
 for runtime behavior. setup() remains implemented in odrive.cpp.
 */
 void loop() {
+  buttonDetect(&buttonPins::powerButton);
+  buttonDetect(&buttonPins::autoHoming);
+  buttonDetect(&buttonPins::triggerButton);
+  buttonDetect(&buttonPins::toolSelect);
+
   // Handle zero request from PC
   if (Serial.available()) {
     char c = Serial.read();

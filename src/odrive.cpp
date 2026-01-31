@@ -50,7 +50,7 @@ void onCanMessage(const CanMsg& msg) {
 }
 
 
-void setup() {
+void setupODrive() {
   Serial.begin(115200);
   delay(200);
 

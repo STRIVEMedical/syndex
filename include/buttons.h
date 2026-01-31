@@ -1,10 +1,10 @@
 #include <Arduino.h>
 
-typdef struct {
+typedef struct {
     uint8_t pin; // GPIO Pin #
     uint8_t io; // INPUT or INPUT_PULLUP
     uint8_t buttonState; // Current button state
-    uint8_t lastButtonState = HIGH; // Last state from button, active LOW
+    uint8_t lastButtonState; // Last state from button, active LOW
 } button_t;
 
 namespace buttonPins {
@@ -28,11 +28,12 @@ typedef struct {
   bool home_released  = false;
 } ButtonEvents_t;
 
-void buttonInit();
-void pinSetup();
-void buttonDetect();
-void buttonUpdate();
+void buttonInit(button_t* b);
 
-class Buttons {
+void buttonDetect(button_t* b);
+
+void buttonUpdate(button_t* b);
+
+namespace Buttons {
     void setup();
-}
+};
