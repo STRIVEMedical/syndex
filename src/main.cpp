@@ -8,7 +8,8 @@
 #include "ODriveCAN.h"
 #include <FlexCAN_T4.h>
 #include "main.h"
-// #include "ODriveFlexCAN.hpp"
+// #include "ODriveFlexCAN.hpp"#include "states.h"
+
 
 void setup() {
   if (!initMultiOdrives()) {
@@ -26,6 +27,8 @@ void setup() {
   Serial.println("Setting input torqe (0.0)");
   odrv0.setTorque(0.0);
 }
+
+// static stateMachine mStateMachine;
 
 /*
 Main loop moved here from i2c.cpp so this file is the sketch entry
@@ -48,11 +51,9 @@ void loop() {
   //     Serial.println("Zeroed!");
   //   }
   // }
+  stateUpdate();
 
-  // readJointAnglesAndRaw();
-
-  // float angle0 = getJoint(0)->angle;
-  // float angle1 = getJoint(1)->angle;
+  readJointAnglesAndRaw();
 
   bool joint1Home = getJoint(1)->is_homed;
 

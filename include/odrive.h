@@ -97,7 +97,12 @@ Helper to transition an ODrive into closed-loop control.
 */
 void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data);
 
-
+/**
+ * @brief Emergency stop function for all ODrives
+ * 
+ * @usage Called on emergency stop button press or fault detection
+ * @note Immediately disables all motors and sets system to safe state
+ */
 void emergencyStop();
 
 
