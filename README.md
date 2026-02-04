@@ -40,3 +40,16 @@ Defined in `platformio.ini`:
 - `FlexCAN_T4` - Teensy CAN bus driver
 - `ODriveArduino` - ODrive CAN protocol implementation
 - `TCA9548` - I2C multiplexer support
+
+## ODrive Configuration
+
+### Motor Type Setup
+
+**Motor type is NOT configurable via CAN commands**. It must be set through the ODrive web interface before deployment:
+
+1. Connect to your ODrive via its web interface (usually `<odrive-ip>:8080`)
+2. Navigate to **Motor Configuration**
+3. Set **Motor Type** to `PMSM CURRENT CONTROL` (0)
+4. Save and reboot the ODrive
+
+Once configured, the motor type persists across power cycles. The `configureOdrive()` function will handle encoder offset calibration and other runtime setup via CAN.

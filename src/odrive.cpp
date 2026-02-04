@@ -30,7 +30,7 @@ bool setupCan() {
 }
 
 /* =========================
- * ODRIVE STATE CONTROL
+ * ODRIVE STATE AND CONTROL MODE
  * ========================= */
 
 void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data) {
@@ -45,6 +45,24 @@ void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data) {
       pumpEvents(can_intf);
     }
   }
+}
+
+
+void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data) {
+  while (data.last_controller_mode.Control_Mode != 
+        ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL & data.last_input_mode.Input_Mode != 
+        ODriveInputMode::INPUT_MODE_PASSTHROUGH){
+      odrv.clearErrors();
+      delay(1);
+      odrv.setControllerMode(ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL);
+      odrv.setControllerMode(ODriveInputMode::INPUT_MODE_PASSTHROUGH);
+
+      for (int i = 0; i < 15; i++) {
+      delay(10);
+      pumpEvents(can_intf);
+    }
+  }
+  Serial.println("Torque control enabled");
 }
 
 /* =========================
@@ -106,8 +124,11 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data) {
   Serial.println("ODrive Found!");
 
   // Enable closed-loop control
-  Serial.println("Enabling Closed Loop Control...");
-  enable_closed_loop(odrv, data);
+  // Serial.println("Enabling Closed Loop Control...");
+  // enable_closed_loop(odrv, data);
+  // Enable torque control
+  Serial.println("Enabling torque control and input passthrough...");
+  enable_torque_control(odrv, data);
   Serial.println("ODrive Running!");
   return true;
 }
