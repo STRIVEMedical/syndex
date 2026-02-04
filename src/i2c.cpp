@@ -22,7 +22,7 @@ two bytes (high and low) from angle registers 0x0E and 0x0F
 */
 uint16_t readRawAS5600() {
   Wire.beginTransmission(AS5600_ADDR);
-  Wire.write(0x0C);                 // ANGLE register MSB
+  Wire.write(ANGLE_HIGH);                 // ANGLE register MSB
   Wire.endTransmission(false);      // repeated start
 
   Wire.requestFrom(AS5600_ADDR, 2);

@@ -4,7 +4,6 @@
 #include <Arduino.h>
 #include "ODriveCAN.h"
 #include <FlexCAN_T4.h>
-#include "ODriveFlexCAN.hpp"
 
 
 /* CAN Settings ----------------------------------------------------*/
@@ -17,7 +16,7 @@
 struct ODriveStatus; // Teensy compile hack
 
 /* FlexCAN Interface -----------------------------------------------*/
-FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can_intf;
+extern FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can_intf;
 
 /*
 Forward-declared empty struct to satisfy linker/compile-time requirements
@@ -31,21 +30,21 @@ struct ODriveUserData {
 };
 
 /* ODrive Instances ------------------------------------------------*/
-ODriveCAN odrv0(wrap_can_intf(can_intf), ODRV0_NODE_ID);
-ODriveCAN odrv1(wrap_can_intf(can_intf), ODRV1_NODE_ID);
+extern ODriveCAN odrv0;
+extern ODriveCAN odrv1;
 
 // List of all drives for message routing
-ODriveCAN* odrives[] = { &odrv0, &odrv1 };
+extern ODriveCAN* odrives[2];
 
-ODriveUserData odrv0_user_data;
-ODriveUserData odrv1_user_data;
+extern ODriveUserData odrv0_user_data;
+extern ODriveUserData odrv1_user_data;
 
 
 /*
 Routes every incoming CAN frame to each ODriveCAN instance so each can decide
 whether the frame matches its configured node ID
 */
-void onCanMessage(const CanMsg& msg);
+void onCanMessage(const CAN_message_t& msg);
 /*
 Stores incoming heartbeat message and marks drive as detected on CAN bus
 */
@@ -57,9 +56,25 @@ Records encoder position and velocity for the associated ODrive
 void onFeedback(Get_Encoder_Estimates_msg_t& msg, void* user_data);
 
 /*
-Sets up odrive can reqs
+Sets up odrive CAN reqs
 */
 bool setupCan();
+
+/*
+One-time system initialization:
+- initializes Serial
+- initializes CAN
+- initializes I2C sensors
+*/
+bool initOdriveSystem();
+
+/*
+Per-ODrive initialization:
+- registers callbacks
+- waits for heartbeat
+- transitions to closed-loop control
+*/
+bool initOdrive(ODriveCAN &odrv, ODriveUserData &data);
 
 /*
 - Initializes Serial for debugging
@@ -68,7 +83,7 @@ bool setupCan();
 - waits for heartbeat from both ODrives
 - transitions both ODrives into closed-loop control
 */
-void setup();
+bool initMultiOdrives();
 
 /*
 Helper to transition an ODrive into closed-loop control.
