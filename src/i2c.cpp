@@ -22,13 +22,16 @@ two bytes (high and low) from angle registers 0x0E and 0x0F
 */
 uint16_t readRawAS5600() {
   Wire.beginTransmission(AS5600_ADDR);
-  Wire.write(ANGLE_HIGH);
-  Wire.endTransmission(false);
+  Wire.write(0x0C);                 // ANGLE register MSB
+  Wire.endTransmission(false);      // repeated start
 
   Wire.requestFrom(AS5600_ADDR, 2);
-  uint8_t high = Wire.read();
-  uint8_t low  = Wire.read();
-  return (high << 8) | low;
+  if (Wire.available() < 2) return 0xFFFF;
+
+  uint8_t msb = Wire.read();
+  uint8_t lsb = Wire.read();
+
+  return ((msb << 8) | lsb) & 0x0FFF; // 12-bit angle
 }
 
 /*
@@ -59,10 +62,13 @@ for debugging or streaming encoder data to a host
 */
 void setupI2C() {
   Serial.begin(115200);
-  Wire.begin();
-  delay(300);
+  while (!Serial) {}
 
-  Serial.println("AS5600 Multi-Sensor Reader Ready");
+  Wire.begin();          // SDA=18, SCL=19
+  Wire.setClock(400000);
+
+  // Serial.println("AS5600 via I2C Mux");
 }
 
-// loop() moved to src/main.cpp so the sketch has a single owner
+
+

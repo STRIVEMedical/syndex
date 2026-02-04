@@ -3,7 +3,9 @@
 
 #define TCA_ADDR 0x70
 #define AS5600_ADDR 0x36
-#define ANGLE_HIGH  0x0E
+// #define ANGLE_HIGH  0x0E  //old
+#define ANGLE_HIGH  0x0C
+
 #define ANGLE_LOW   0x0F
 
 extern float zeroOffset[7];   // per-sensor zeroing
