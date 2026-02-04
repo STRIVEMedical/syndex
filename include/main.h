@@ -6,6 +6,8 @@
 #include "i2c.h"
 #include "buttons.h"
 #include "LEDs.h"
+#include "joint.h"
 
+void setup();
 
 #endif // MAIN_H

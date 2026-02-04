@@ -35,6 +35,7 @@ struct ODriveUserData {
   bool received_last_input_mode = false;
 };
 
+
 /* ODrive Instances ------------------------------------------------*/
 extern ODriveCAN odrv0;
 extern ODriveCAN odrv1;

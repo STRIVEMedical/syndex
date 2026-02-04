@@ -103,7 +103,7 @@ void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data) {
         (data.last_input_mode.Input_Mode != 
         ODriveInputMode::INPUT_MODE_PASSTHROUGH)) {
     
-    odrv.clearErrors();
+    odrv.clearErrors(); 
     delay(1);
     
     // Set control mode to torque control and Set input mode to passthrough (direct torque commands)
