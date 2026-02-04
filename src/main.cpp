@@ -1,6 +1,14 @@
-#include "main.h"
+#include <Arduino.h>
+#include <Wire.h>
+#include "i2c.h"
+#include "odrive.h"
 
 void setup() {
+  if (!initMultiOdrives()) {
+    Serial.println("ODrive init failed — halting");
+    while (1);
+  }
+
   Buttons::setup();
   LED::setup();
   ONToggleLED(&LED::powerLED);
@@ -28,7 +36,6 @@ void loop() {
   //     Serial.println("Zeroed!");
   //   }
   // }
-  setupI2C();
 
   // -------- SENSOR 0 SETUP --------
   tcaSelect(0);
