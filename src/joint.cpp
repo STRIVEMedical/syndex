@@ -9,11 +9,11 @@ static Joint joints[NUM_JOINTS];
 static const char* odriveLabel(const ODriveCAN* odrv) {
     if (odrv == &odrv0) return "odrv0";
     if (odrv == &odrv1) return "odrv1";
-    if (odrv == &odrv1) return "odrv2";
-    if (odrv == &odrv1) return "odrv3";
-    if (odrv == &odrv1) return "odrv4";
-    if (odrv == &odrv1) return "odrv5";
-    if (odrv == &odrv1) return "odrv6";
+    // if (odrv == &odrv2) return "odrv2";
+    // if (odrv == &odrv3) return "odrv3";
+    // if (odrv == &odrv4) return "odrv4";
+    // if (odrv == &odrv5) return "odrv5";
+    // if (odrv == &odrv6) return "odrv6";
     return "unknown";
 }
 
@@ -37,7 +37,10 @@ void initJoints() {
 
 // Get joint pointer by ID
 Joint* getJoint(uint8_t id) {
-    if (id >= NUM_JOINTS) return nullptr;
+    if (id >= NUM_JOINTS){
+        return nullptr;
+    }
+
     return &joints[id];
 }
 

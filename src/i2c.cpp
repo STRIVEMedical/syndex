@@ -61,9 +61,6 @@ Initializes I2C communication and sets up the serial interface
 for debugging or streaming encoder data to a host
 */
 void setupI2C() {
-  Serial.begin(115200);
-  while (!Serial) {}
-
   Wire.begin();          // SDA=18, SCL=19
   Wire.setClock(400000);
 
