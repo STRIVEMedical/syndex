@@ -27,6 +27,12 @@ struct ODriveUserData {
   bool received_heartbeat = false;
   Get_Encoder_Estimates_msg_t last_feedback;
   bool received_feedback = false;
+  //to set CONTROL_MODE_TORQUE_CONTROL
+  Set_Controller_Mode_msg_t last_controller_mode;
+  bool received_last_controller_mode = false;
+  //to set INPUT_MODE_PASSTHROUGH
+  Set_Controller_Mode_msg_t last_input_mode;
+  bool received_last_input_mode = false;
 };
 
 /* ODrive Instances ------------------------------------------------*/

@@ -7,6 +7,5 @@
 #include "buttons.h"
 #include "LEDs.h"
 
-void setup();
 
 #endif // MAIN_H

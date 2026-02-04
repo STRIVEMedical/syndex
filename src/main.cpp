@@ -2,6 +2,8 @@
 #include <Wire.h>
 #include "i2c.h"
 #include "odrive.h"
+#include "buttons.h"
+#include "LEDs.h"
 
 void setup() {
   if (!initMultiOdrives()) {
@@ -38,22 +40,22 @@ void loop() {
   // }
 
   // -------- SENSOR 0 SETUP --------
-  tcaSelect(0);
-  delayMicroseconds(500);
-  uint16_t raw0 = readRawAS5600();
-  float angle0 = computeAngle(0, raw0);
+  // tcaSelect(0);
+  // delayMicroseconds(500);
+  // uint16_t raw0 = readRawAS5600();
+  // float angle0 = computeAngle(0, raw0);
 
   // -------- SENSOR 1 SETUP --------
-  tcaSelect(1);
-  delayMicroseconds(200);
-  uint16_t raw1 = readRawAS5600();
-  float angle1 = computeAngle(1, raw1);
+  // tcaSelect(1);
+  // delayMicroseconds(200);
+  // uint16_t raw1 = readRawAS5600();
+  // float angle1 = computeAngle(1, raw1);
 
   // -------- SENSOR 2 SETUP --------
-  tcaSelect(2);
-  delayMicroseconds(500);
-  uint16_t raw2 = readRawAS5600();
-  float angle2 = computeAngle(2, raw2);
+  // tcaSelect(2);
+  // delayMicroseconds(500);
+  // uint16_t raw2 = readRawAS5600();
+  // float angle2 = computeAngle(2, raw2);
 
   // // -------- SENSOR 3 SETUP --------
   // tcaSelect(3);
@@ -103,8 +105,8 @@ void loop() {
   // Serial.println(turns[1]);
 
   // Reading Sensor 2
-  Serial.print("CH2: ");
-  Serial.println(angle2, 2);
+  // Serial.print("CH2: ");
+  // Serial.println(angle2, 2);
 
   // //Prints number of Revolutions for encoder 2
   // Serial.print("REV2: ");
