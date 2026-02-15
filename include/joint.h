@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include "odrive.h"
 
-#define NUM_JOINTS 7 
+#define NUM_JOINTS 2 
 
 // Stores hardware mapping for one joint
 struct Joint {
