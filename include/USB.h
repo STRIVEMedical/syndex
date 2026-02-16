@@ -73,6 +73,13 @@ struct jointData {
 }; // Represented as 16-bit floats in USB.cpp (Uses Float16 Conversion Functions)
   //Converted to unsigned16 before sending, converted back to float16 after recieving
 
+void buildTelemJointPayload(telemJointDataPayload& payload, int sensorID, uint16_t raw) {
+    float ang = computeAngle(sensorID, raw);
+    //float vel = computeVelocity(sensorID, ang, ???); TODO: Implement computeVelocity
+    payload.joints[sensorID].jnAngle = ang;
+    //payload.joints[sensorID].jnVelocity = vel
+}; //Function that loads the angle from the encoder, computes the velocity, and puts both into the payload (for a single encoder)
+
 struct telemJointDataPayload {
   jointData joints[7];
 };
