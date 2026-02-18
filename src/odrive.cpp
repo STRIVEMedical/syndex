@@ -99,7 +99,7 @@ void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data) {
 void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data) {
   // Wait until ODrive confirms torque control and passthrough input mode
   while ((data.last_controller_mode.Control_Mode != 
-        ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL) && 
+        ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL) || 
         (data.last_input_mode.Input_Mode != 
         ODriveInputMode::INPUT_MODE_PASSTHROUGH)) {
     
@@ -109,8 +109,6 @@ void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data) {
     // Set control mode to torque control and Set input mode to passthrough (direct torque commands)
     odrv.setControllerMode(ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL, ODriveInputMode::INPUT_MODE_PASSTHROUGH);
     
-
-
     // Process CAN messages to update status
     for (int i = 0; i < 15; i++) {
       delay(10);
@@ -243,6 +241,8 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data) {
   // Enable torque control mode (required for gravity compensation)
   Serial.println("Enabling torque control and input passthrough...");
   enable_torque_control(odrv, data);
+  Serial.println("Entering closed loop control...");
+  enable_closed_loop(odrv, data); 
   Serial.println("ODrive Running!");
   return true;
 }
@@ -293,6 +293,28 @@ void emergencyStop() {
   }
 
   Serial.println("Emergency Stop!");
+}
+
+void setOdriveTorque(ODriveCAN &odrv, ODriveUserData &data, float torque) {
+  if (data.last_heartbeat.Axis_State !=
+      ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL) {
+        Serial.println("Closed loop not enabled!");
+    return;
+  }
+
+  odrv.setInputTorque(torque);
+}
+
+
+
+void stopOdrive(ODriveCAN &odrv, ODriveUserData &data){
+  if (data.last_heartbeat.Axis_State !=
+      ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL) {
+        Serial.println("Closed loop not enabled!");
+    return;
+  }
+
+  odrv.setInputTorque(0);
 }
 
 /**
