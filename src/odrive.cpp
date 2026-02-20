@@ -237,12 +237,12 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data) {
     pumpEvents(can_intf);
   }
   Serial.println("ODrive Found!");
-
-  // Enable torque control mode (required for gravity compensation)
-  Serial.println("Enabling torque control and input passthrough...");
-  enable_torque_control(odrv, data);
   Serial.println("Entering closed loop control...");
   enable_closed_loop(odrv, data); 
+  // Enable torque control mode (required for gravity compensation)
+  // Serial.println("Enabling torque control and input passthrough...");
+  // enable_torque_control(odrv, data);
+
   Serial.println("ODrive Running!");
   return true;
 }
@@ -273,9 +273,9 @@ bool initMultiOdrives() {
   }
   
   // Initialize ODrive 1 (typically base joint 2 - pulley2)
-  if (!initOdrive(odrv1, odrv1_user_data)) {
-    return false;
-  }
+  // if (!initOdrive(odrv1, odrv1_user_data)) {
+  //   return false;
+  // }
 
   Serial.println("All ODrives Running!");
   return true;
@@ -290,32 +290,15 @@ bool initMultiOdrives() {
 void emergencyStop() {
   for (auto odrive : odrives) {
     odrive->setState(ODriveAxisState::AXIS_STATE_IDLE);
+    odrive->setTorque(0.0);
   }
 
   Serial.println("Emergency Stop!");
 }
 
-void setOdriveTorque(ODriveCAN &odrv, ODriveUserData &data, float torque) {
-  if (data.last_heartbeat.Axis_State !=
-      ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL) {
-        Serial.println("Closed loop not enabled!");
-    return;
-  }
-
-  odrv.setInputTorque(torque);
-}
 
 
 
-void stopOdrive(ODriveCAN &odrv, ODriveUserData &data){
-  if (data.last_heartbeat.Axis_State !=
-      ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL) {
-        Serial.println("Closed loop not enabled!");
-    return;
-  }
-
-  odrv.setInputTorque(0);
-}
 
 /**
  * @brief Performs homing sequence using AS5600 absolute encoders
