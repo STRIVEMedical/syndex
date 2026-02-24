@@ -49,6 +49,8 @@ void loop() {
   float angle0 = getJoint(0)->angle;
   float angle1 = getJoint(1)->angle;
 
+  bool joint1Home = getJoint(1)->is_homed;
+
   Serial.print("CH0: ");
   Serial.println(angle0, 2);
 
