@@ -162,8 +162,8 @@ void onFeedback(Get_Encoder_Estimates_msg_t& msg, void* user_data) {
 
 void onCurrents(Get_Iq_msg_t& msg, void* user_data) {
     ODriveUserData* ud = (ODriveUserData*)user_data;
-    ud->last_iq = msg;
-    ud->received_iq = true;
+    ud->last_iq_msg = msg;
+    ud->received_iq_current = true;
 }
 
 /**
