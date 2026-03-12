@@ -10,4 +10,6 @@
 
 void setup();
 
+void computeAngle();
+
 #endif // MAIN_H
