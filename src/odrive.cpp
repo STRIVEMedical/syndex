@@ -237,7 +237,6 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data) {
   odrv.onStatus(onHeartbeat, &data);
   odrv.onFeedback(onFeedback, &data);
   odrv.onCurrents(onCurrents, &data);
-  odrv.onCurrents(onCurrents, &data);
 
   // Wait for heartbeat to confirm ODrive is online
   Serial.println("Waiting for ODrive...");

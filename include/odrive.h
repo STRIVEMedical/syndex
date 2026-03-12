@@ -102,9 +102,6 @@ void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data);
 
 void emergencyStop();
 
-
-void setOdriveTorque(ODriveCAN &odrv, ODriveUserData &data, float torque);
-
 void stopOdrive(ODriveCAN &odrv, ODriveUserData &data);
 
 
