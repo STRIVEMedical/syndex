@@ -45,31 +45,25 @@ void loop() {
     last_loop_time_us = now;
     if (dt > 0.05f) dt = 0.05f; // clamp if loop stalls
 
-    readJointAnglesAndRaw();
+    readJointAngles();
 
-    for (int i = 0; i < NUM_JOINTS; i++) {
-        Joint* j = getJoint(i);
-        ODriveUserData* ud = (i == 0) ? &odrv0_user_data : &odrv1_user_data;
-        ODriveCAN* odrv = (i == 0) ? &odrv0 : &odrv1;
+  for (int i = 0; i < NUM_JOINTS; i++) {
+      ODriveUserData* ud = joints[i].user_data;
+      ODriveCAN*      od = joints[i].odrive;
 
-        if (!ud->received_iq) continue;
+      if (!ud->received_iq_current) continue;
 
-        float angle_rad = j->angle * DEG_TO_RAD;
-        float iq = ud->last_iq.Iq_Measured;
+      float angle_rad = getJointAngle(i) * DEG_TO_RAD;
+      float iq        = ud->last_iq_msg.Iq_Measured;
 
-        float tau_ext = estimateExternalTorque(&admittance[i], iq, angle_rad);
+      float tau_ext = estimateExternalTorque(&admittance[i], iq, angle_rad);
+      if (fabsf(tau_ext) < 0.1f) tau_ext = 0.0f;
 
-        // Deadband: ignore tiny forces (noise floor)
-        if (fabsf(tau_ext) < 0.1f) tau_ext = 0.0f;
+      updateAdmittance(&admittance[i], tau_ext, dt);
 
-        updateAdmittance(&admittance[i], tau_ext, dt);
+      float vel_cmd = admittance[i].vel / (2.0f * PI * admittance[i].gear_ratio);
+      vel_cmd = constrain(vel_cmd, -2.0f, 2.0f);
 
-        // Convert virtual velocity (rad/s) → motor turns/s
-        float vel_cmd = admittance[i].vel / (2.0f * PI * admittance[i].gear_ratio);
-
-        // Clamp for safety
-        vel_cmd = constrain(vel_cmd, -2.0f, 2.0f);
-
-        odrv.setVelocity(vel_cmd, 0.0f);
-    }
+      od->setVelocity(vel_cmd, 0.0f);
+  }
 }

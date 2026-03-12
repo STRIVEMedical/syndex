@@ -1,6 +1,10 @@
 #ifndef ADMITTANCE_H
 #define ADMITTANCE_H
 
+#define GEAR_RATIO 23 //23:1
+#define TORQUE_CONST 100 //change 
+
+
 #include <Arduino.h>
 
 // Per-joint admittance state
@@ -15,15 +19,18 @@ struct AdmittanceState {
     float pos;      // Virtual position (rad) — tracks desired position
 
     // Force estimation
-    float torque_constant; // Kt of your motor (N·m/A)
-    float gear_ratio;      // Pulley/gearbox ratio
+    float TORQUE_CONST; // Kt of your motor (N·m/A)
+    float GEAR_RATIO;      // Pulley/gearbox ratio
 
     float gravity_torque;  // Current gravity torque estimate
 };
 
 void initAdmittance(AdmittanceState* s, float M, float B, float Kt, float ratio);
+
 float estimateExternalTorque(AdmittanceState* s, float iq_measured, float joint_angle);
+
 void updateAdmittance(AdmittanceState* s, float tau_ext, float dt);
+
 float getAdmittanceTorqueCommand(AdmittanceState* s, float current_pos);
 
 #endif
