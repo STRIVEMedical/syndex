@@ -12,6 +12,7 @@
 // Node IDs for each ODrive
 #define ODRV0_NODE_ID 0
 #define ODRV1_NODE_ID 1
+#define ODRV2_NODE_ID 2
 
 struct ODriveStatus; // Teensy compile hack
 
@@ -41,12 +42,14 @@ struct ODriveUserData {
 /* ODrive Instances ------------------------------------------------*/
 extern ODriveCAN odrv0;
 extern ODriveCAN odrv1;
+extern ODriveCAN odrv2;
 
 // List of all drives for message routing
-extern ODriveCAN* odrives[2];
+extern ODriveCAN* odrives[3];
 
 extern ODriveUserData odrv0_user_data;
 extern ODriveUserData odrv1_user_data;
+extern ODriveUserData odrv2_user_data;
 
 
 /*

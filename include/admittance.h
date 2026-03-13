@@ -1,8 +1,8 @@
 #ifndef ADMITTANCE_H
 #define ADMITTANCE_H
 
-#define GEAR_RATIO 23 //23:1
-#define TORQUE_CONST 100 //change 
+#define GEAR_RATIO  23.0 //23:1
+#define TORQUE_CONST 100.0 //change 
 
 
 #include <Arduino.h>
@@ -19,8 +19,8 @@ struct AdmittanceState {
     float pos;      // Virtual position (rad) — tracks desired position
 
     // Force estimation
-    float TORQUE_CONST; // Kt of your motor (N·m/A)
-    float GEAR_RATIO;      // Pulley/gearbox ratio
+    float torque_constant; // Kt of your motor (N·m/A)
+    float gear_ratio;      // Pulley/gearbox ratio
 
     float gravity_torque;  // Current gravity torque estimate
 };

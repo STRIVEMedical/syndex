@@ -21,13 +21,15 @@ FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can_intf;
 // ODrive instances with unique node IDs
 ODriveCAN odrv0(wrap_can_intf(can_intf), ODRV0_NODE_ID);  // Node ID 0
 ODriveCAN odrv1(wrap_can_intf(can_intf), ODRV1_NODE_ID);  // Node ID 1
+ODriveCAN odrv2(wrap_can_intf(can_intf), ODRV2_NODE_ID);  // Node ID 2
 
 // Array of ODrive pointers for easy iteration
-ODriveCAN* odrives[] = { &odrv0, &odrv1 };
+ODriveCAN* odrives[] = {&odrv0, &odrv1, &odrv2};
 
 // User data structures for storing ODrive status information
 ODriveUserData odrv0_user_data;  // Status data for ODrive 0
 ODriveUserData odrv1_user_data;  // Status data for ODrive 1
+ODriveUserData odrv2_user_data;  // Status data for ODrive 2
 
 /* =========================
  * CAN SETUP
@@ -116,6 +118,29 @@ void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data) {
     }
   }
   Serial.println("Torque control enabled");
+}
+
+
+void enable_velocity_control(ODriveCAN &odrv, ODriveUserData &data) {
+    while ((data.last_controller_mode.Control_Mode !=
+            ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL) ||
+           (data.last_input_mode.Input_Mode !=
+            ODriveInputMode::INPUT_MODE_PASSTHROUGH)) {
+
+        odrv.clearErrors();
+        delay(1);
+
+        odrv.setControllerMode(
+            ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL,
+            ODriveInputMode::INPUT_MODE_PASSTHROUGH
+        );
+
+        for (int i = 0; i < 15; i++) {
+            delay(10);
+            pumpEvents(can_intf);
+        }
+    }
+    Serial.println("Velocity control enabled");
 }
 
 /* =========================

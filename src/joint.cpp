@@ -8,9 +8,9 @@ static bool   joint_homed[NUM_JOINTS]  = {false, false, false};
 
 //NOTES FOR DEBUGGING. CHECK TO MAKE SURE THAT FIRST ODRIVE IS THE NODE 0 AND WITH RESISTOR BRIDGED
 Joint joints[NUM_JOINTS] = {
-    { &odrv0, &odrv0_user_data, 0, 5.0f, 0.0f,  "LIFT"    },
-    { &odrv1, &odrv1_user_data, 1, 5.0f, 0.0f,  "REACH"   },
-    { &odrv2, &odrv2_user_data, 2, 5.0f, 0.0f,  "ROTATE"  },
+    { &odrv0, &odrv0_user_data, 0, 5.0f, 0.0f,  "ROTATE"    },
+    { &odrv1, &odrv1_user_data, 1, 5.0f, 0.0f,  "LIFT"   },
+    { &odrv2, &odrv2_user_data, 2, 5.0f, 0.0f,  "REACH"  },
 };
 
 void initJoints() {

@@ -122,7 +122,7 @@ void loop() {
             DBG_VAL("[WARN] vel_cmd clamped on joint ", i);
         }
 
-        od->setInputVel(vel_cmd, 0.0f);
+        od->setVelocity(vel_cmd, 0.0f);
 
         // ── Throttled debug print ─────────────────────────
         #if DEBUG
