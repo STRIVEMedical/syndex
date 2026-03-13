@@ -269,11 +269,10 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data) {
     pumpEvents(can_intf);
   }
   Serial.println("ODrive Found!");
+  Serial.println("Entering velocity control for admittance...");
+  enable_velocity_control(odrv, data);
   Serial.println("Entering closed loop control...");
   enable_closed_loop(odrv, data); 
-  // Enable torque control mode (required for gravity compensation)
-  // Serial.println("Enabling torque control and input passthrough...");
-  // enable_torque_control(odrv, data);
 
   Serial.println("ODrive Running!");
   return true;
