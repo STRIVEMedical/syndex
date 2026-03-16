@@ -4,7 +4,7 @@
 #define TRUE 1
 
 namespace LED {
-    /* GREEN: Receiving satisfactory power for Teensy operation */
+    /* PWR Button LED: Receiving satisfactory power for Teensy operation */
     led_t powerLED = {7, POWER};
 
     /* YELLOW: Receiving data from encoders/ODrives, transitively ready to send data to PC */
