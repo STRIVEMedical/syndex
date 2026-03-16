@@ -10,7 +10,7 @@ typedef enum {
 
 typedef struct {
     uint8_t pin; // GPIO Pin #
-    ledType_e purpose; // LEDs will be OUTPUT
+    ledType_e type; // LEDs will be OUTPUT
     /* 
     uint8_t ledState; // Current button state
     uint8_t lastLedState; // Last state from button, active LOW

@@ -4,13 +4,13 @@
 #define TRUE 1
 
 namespace LED {
-    /* Receiving satisfactory power for Teensy operation */
+    /* GREEN: Receiving satisfactory power for Teensy operation */
     led_t powerLED = {7, POWER};
 
-    /* Receiving data from encoders/ODrives, transitively ready to send data to PC */
+    /* YELLOW: Receiving data from encoders/ODrives, transitively ready to send data to PC */
     led_t dataLED = {8, DATA};
 
-    /* Toggle errorLED on an error mode */
+    /* RED: Toggle errorLED on an error mode */
     led_t errorLED = {28, ERROR};
 
     void setup() {
