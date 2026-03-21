@@ -9,6 +9,7 @@ typedef enum {
     I2C_ERROR,
     BUTTON_ERROR,
     LED_ERROR,
+    CONNECTION_ERROR,
 } errorCode_e;
 
 //Reports if an error has occured
