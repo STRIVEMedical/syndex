@@ -2,7 +2,7 @@
 #define STATES_H
 
 #include <stdbool.h>
-
+#include "errors.h"
 typedef enum {
     BOOTUP,
     IDLE,
