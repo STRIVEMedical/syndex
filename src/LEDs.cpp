@@ -11,7 +11,7 @@ namespace Led {
     led_t dataLED = {8, DATA};
 
     /* RED: Toggle errorLED on an error mode */
-    led_t errorLED = {28, ERROR};
+    led_t errorLed = {28, ERROR};
 
     void setup() {
         initLED(&Led::powerLed);
