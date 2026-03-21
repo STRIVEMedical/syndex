@@ -93,7 +93,6 @@ bool verifyLED(){
     return true;
 }
 
-void waitForPing(){ //blocking firmware until confirmed synchronization between PC & Teensy
 
     bool connected = false;
     packet pong;
