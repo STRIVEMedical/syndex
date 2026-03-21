@@ -3,20 +3,20 @@
 #define FALSE 0
 #define TRUE 1
 
-namespace LED {
-    /* PWR Button LED: Receiving satisfactory power for Teensy operation */
-    led_t powerLED = {7, POWER};
-
+namespace Led {
+    /* Receiving satisfactory power for Teensy operation */
+    led_t powerLed = {7, POWER};
+    led_t dataLed;
     /* YELLOW: Receiving data from encoders/ODrives, transitively ready to send data to PC */
     led_t dataLED = {8, DATA};
 
     /* RED: Toggle errorLED on an error mode */
-    led_t errorLED = {28, ERROR};
+    led_t errorLed = {28, ERROR};
 
     void setup() {
-        initLED(&LED::powerLED);
-        initLED(&LED::dataLED);
-        initLED(&LED::errorLED);
+        initLED(&Led::powerLed);
+        initLED(&Led::dataLed);
+        initLED(&Led::errorLed);
     }
 }
 

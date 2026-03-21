@@ -17,15 +17,15 @@ typedef struct {
     */
 } led_t;
 
-namespace LED {
+namespace Led {
     /* Receiving satisfactory power for Teensy operation */
-    extern led_t powerLED;
+    extern led_t powerLed;
 
     /* Receiving data from encoders/ODrives, transitively ready to send data to PC */
-    extern led_t dataLED;
+    extern led_t dataLed;
 
     /* Toggle errorLED on an error mode */
-    extern led_t errorLED;
+    extern led_t errorLed;
 
     void setup();
 
