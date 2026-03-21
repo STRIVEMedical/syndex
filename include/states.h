@@ -48,23 +48,6 @@ void powerOffPeripherals();
 
 //Error Enumeration (Different types of errors that may occur)
 //ENCODER_ERROR state?
-typedef enum {
-    ODRIVE_ERROR,
-    I2C_ERROR,
-    BUTTON_ERROR,
-    LED_ERROR,
-    CONNECTION_ERROR,
-    NO_ERROR,
-} errorCode_e;
-
-extern errorCode_e currError;
-
-//Reports if an error has occured
-void setError(errorCode_e);
-//Checks current error
-errorCode_e getError();
-//Resets the state after recovery
-void clearError(void);
 
 //Error state functions
 bool errorCheck();
