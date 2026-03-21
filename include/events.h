@@ -19,7 +19,7 @@ typedef enum {
 } hardwareEvent_e;
 
 /* Current hardware event */
-extern static hardwareEvent_e mHardwareEvent;
+extern hardwareEvent_e mHardwareEvent;
 
 namespace event {
     /* Send event - can handle state changes on events */
