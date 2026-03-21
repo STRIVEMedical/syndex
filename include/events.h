@@ -23,5 +23,5 @@ extern hardwareEvent_e mHardwareEvent;
 
 namespace event {
     /* Send event - can handle state changes on events */
-    dispatchEvent();
+    void dispatchEvent();
 }
