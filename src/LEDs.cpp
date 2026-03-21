@@ -6,7 +6,7 @@
 namespace Led {
     /* Receiving satisfactory power for Teensy operation */
     led_t powerLed = {7, POWER};
-
+    led_t dataLed;
     /* YELLOW: Receiving data from encoders/ODrives, transitively ready to send data to PC */
     led_t dataLED = {8, DATA};
 
