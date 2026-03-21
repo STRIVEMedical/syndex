@@ -14,7 +14,7 @@ typedef enum {
 //Reports if an error has occured
 void setError(errorCode_e);
 //Checks current error
-void getError(void);
+void getError(errorCode_e);
 //Resets the state after recovery
 void clearError(void);
 //Checks whether the error still exists
