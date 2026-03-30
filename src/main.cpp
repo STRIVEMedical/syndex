@@ -153,6 +153,7 @@ void loop() {
         Serial.print("dt(ms)=");
         Serial.println(dt * 1000.0f, 2);
 
+<<<<<<< HEAD
         // Print only REACH onboard-encoder joint (ODrive encoder)
         bool printed_odrive = false;
         for (int i = 0; i < NUM_JOINTS; i++) {
@@ -161,12 +162,18 @@ void loop() {
                 Serial.print(getJointAngle(i), 2); Serial.println(" deg");
                 printed_odrive = true;
                 break;
+=======
+        // Print configured ODrive joints side-by-side on one line.
+        int odrive_indices[2] = {-1, -1};
+        int odrive_count = 0;
+        for (int i = 0; i < NUM_JOINTS && odrive_count < 2; i++) {
+            if (joints[i].has_odrive && joints[i].use_onboard_encoder) {
+                odrive_indices[odrive_count++] = i;
+>>>>>>> 665a18d (working 2 odrive readings)
             }
         }
-        if (!printed_odrive) {
-            Serial.println("ODRIVE [N/A] angle=N/A");
-        }
 
+<<<<<<< HEAD
         // Print up to 4 external encoder joints
         int ext_printed = 0;
         for (int i = 0; i < NUM_JOINTS && ext_printed < 4; i++) {
@@ -176,12 +183,24 @@ void loop() {
                 Serial.print(joints[i].sensor_channel); Serial.print("] angle=");
                 Serial.print(getJointAngle(i), 2); Serial.println(" deg");
                 ext_printed++;
+=======
+        if (odrive_count == 0) {
+            Serial.println("ODRIVE [N/A] angle=N/A");
+        } else {
+            Serial.print("ODRIVES | ");
+            for (int k = 0; k < odrive_count; k++) {
+                int idx = odrive_indices[k];
+                Serial.print("[");
+                Serial.print(joints[idx].label);
+                Serial.print("] ");
+                Serial.print(getJointAngle(idx), 2);
+                Serial.print(" deg");
+                if (k < odrive_count - 1) {
+                    Serial.print("  ||  ");
+                }
+>>>>>>> 665a18d (working 2 odrive readings)
             }
-        }
-        while (ext_printed < 4) {
-            Serial.print("EXT"); Serial.print(ext_printed + 1);
-            Serial.println(" [N/A] angle=N/A");
-            ext_printed++;
+            Serial.println();
         }
         last_print_ms = millis();
     }

@@ -311,10 +311,15 @@ bool initMultiOdrives() {
     return false;
   }
   
-  // Initialize ODrive 1 (typically base joint 2 - pulley2)
-  // if (!initOdrive(odrv1, odrv1_user_data)) {
-  //   return false;
-  // }
+  // Initialize ODrive 1
+  if (!initOdrive(odrv1, odrv1_user_data)) {
+    return false;
+  }
+
+  // Initialize ODrive 2
+  if (!initOdrive(odrv2, odrv2_user_data)) {
+    return false;
+  }
 
   Serial.println("All ODrives Running!");
   return true;
