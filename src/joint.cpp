@@ -12,8 +12,8 @@ static bool   joint_homed[NUM_JOINTS]  = {false};
 Joint joints[NUM_JOINTS] = {
     // odrive       user_data            ch    max_t  home   has_odrv  onboard_enc  label
     { &odrv0, &odrv0_user_data,          255,  5.0f,  0.0f,  true,     true,        "ROTATE"   }, //reads from onboard encoder 
-    { &odrv1, &odrv1_user_data,          1,    5.0f,  0.0f,  true,     false,       "LIFT"  },
-    { &odrv2, &odrv2_user_data,          2,    5.0f,  0.0f,  true,     false,       "REACH" },
+    { &odrv1, &odrv1_user_data,          1,    5.0f,  0.0f,  true,     true,        "LIFT"  },
+    { &odrv2, &odrv2_user_data,          2,    5.0f,  0.0f,  true,     true,        "REACH" },
     { nullptr, nullptr,                  3,    0.0f,  0.0f,  false,    false,       "ELBOW"       },
     { nullptr, nullptr,                  4,    0.0f,  0.0f,  false,    false,       "WRIST_PITCH" },
     { nullptr, nullptr,                  5,    0.0f,  0.0f,  false,    false,       "WRIST_ROLL"  },
@@ -29,7 +29,7 @@ void readJointAngles() {
         if (joints[i].use_onboard_encoder) {
             // Pull position directly from ODrive encoder feedback over CAN
             // Pos_Estimate is in turns — convert to degrees
-            if (joints[i].user_data->received_feedback) {
+            if (joints[i].user_data != nullptr && joints[i].user_data->received_feedback) {
                 float turns = joints[i].user_data->last_feedback.Pos_Estimate;
                 joint_angle[i] = turns * 360.0f;
                 DBG_FLT("[ENC] Joint 0 onboard pos (deg): ", joint_angle[i]);
@@ -37,15 +37,19 @@ void readJointAngles() {
                 DBG("[WARN] Joint 0 onboard encoder not yet received");
             }
 
-        } else if (!joints[i].has_odrive || joints[i].odrive == nullptr) {
-            // AS5600 via I2C mux — passive joints and joints 1 & 2
+        } else {
+            // AS5600 via I2C mux for all joints configured to use external encoders
             tcaSelect(joints[i].sensor_channel);
             delayMicroseconds(200);
             uint16_t raw     = readRawAS5600();
-            joint_angle[i]   = computeAngle(i, raw);
+            if (raw != 0xFFFF) {
+                joint_angle[i] = computeAngle(i, raw);
+            } else {
+                DBG_VAL("[WARN] AS5600 read failed on channel ", joints[i].sensor_channel);
+            }
 
         }
-        // encoder-only joints with no ODrive fall into the else branch above
+        // all external-encoder joints fall into the else branch above
     }
 }
 

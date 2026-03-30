@@ -96,9 +96,8 @@ void loop() {
     }
 
     // ── Read all 7 encoders ───────────────────────────────────
-    // Joint 0: onboard ODrive encoder via CAN (Pos_Estimate)
-    // Joints 1-2: AS5600 via I2C mux
-    // Joints 3-6: AS5600 via I2C mux (passive, no ODrive)
+    // Joints with ODrive: onboard ODrive encoder via CAN (Pos_Estimate)
+    // Joints without ODrive: AS5600 via I2C mux
     readJointAngles();
 
     // ── Per-joint admittance loop — driven joints only ────────
@@ -117,8 +116,7 @@ void loop() {
         }
 
         // ── Angle source ──────────────────────────────────────
-        // Joint 0: already populated from onboard encoder in readJointAngles()
-        // Joints 1-2: populated from AS5600 in readJointAngles()
+        // Driven joints use onboard ODrive encoder values from readJointAngles()
         // Both sources write into the same joint_angle[] array
         float angle_rad = getJointAngle(i) * DEG_TO_RAD;
         float iq        = ud->last_iq_msg.Iq_Measured;
@@ -149,32 +147,39 @@ void loop() {
     // ── Throttled debug print — all 7 joints ─────────────────
     #if DEBUG
     if ((millis() - last_print_ms) >= PRINT_INTERVAL_MS) {
-        Serial.println("─────────────────────────────────────────────");
-        Serial.print("dt (ms): "); Serial.println(dt * 1000.0f, 2);
+        Serial.println("──────── Encoder Snapshot ────────");
+        Serial.print("dt(ms)=");
+        Serial.println(dt * 1000.0f, 2);
 
+        // Print the first onboard-encoder joint (ODrive encoder)
+        bool printed_odrive = false;
         for (int i = 0; i < NUM_JOINTS; i++) {
-            float angle_deg = getJointAngle(i);
-            float angle_rad = angle_deg * DEG_TO_RAD;
-
-            Serial.print("J"); Serial.print(i);
-            Serial.print(" ["); Serial.print(joints[i].label); Serial.print("]");
-            Serial.print("  angle="); Serial.print(angle_deg, 1); Serial.print("deg");
-
-            // Extra info for driven joints only
-            if (joints[i].has_odrive && joints[i].user_data->received_iq_current) {
-                float iq      = joints[i].user_data->last_iq_msg.Iq_Measured;
-                float tau     = estimateExternalTorque(&admittance[i], iq, angle_rad);
-                float vel     = admittance[i].vel;
-                Serial.print("  Iq=");  Serial.print(iq,  4); Serial.print("A");
-                Serial.print("  tau="); Serial.print(tau, 4); Serial.print("Nm");
-                Serial.print("  vel="); Serial.print(vel, 4); Serial.print("rad/s");
-                Serial.print("  enc="); Serial.print(joints[i].use_onboard_encoder ? "ODRV" : "I2C ");
-            } else if (!joints[i].has_odrive) {
-                Serial.print("  [encoder only]");
-            } else {
-                Serial.print("  [waiting for Iq]");
+            if (joints[i].use_onboard_encoder) {
+                Serial.print("ODRIVE ["); Serial.print(joints[i].label); Serial.print("] angle=");
+                Serial.print(getJointAngle(i), 2); Serial.println(" deg");
+                printed_odrive = true;
+                break;
             }
-            Serial.println();
+        }
+        if (!printed_odrive) {
+            Serial.println("ODRIVE [N/A] angle=N/A");
+        }
+
+        // Print up to 4 external encoder joints
+        int ext_printed = 0;
+        for (int i = 0; i < NUM_JOINTS && ext_printed < 4; i++) {
+            if (!joints[i].use_onboard_encoder) {
+                Serial.print("EXT"); Serial.print(ext_printed + 1);
+                Serial.print(" ["); Serial.print(joints[i].label); Serial.print(" ch=");
+                Serial.print(joints[i].sensor_channel); Serial.print("] angle=");
+                Serial.print(getJointAngle(i), 2); Serial.println(" deg");
+                ext_printed++;
+            }
+        }
+        while (ext_printed < 4) {
+            Serial.print("EXT"); Serial.print(ext_printed + 1);
+            Serial.println(" [N/A] angle=N/A");
+            ext_printed++;
         }
         last_print_ms = millis();
     }
