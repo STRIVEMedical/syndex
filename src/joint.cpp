@@ -17,7 +17,7 @@ Joint joints[NUM_JOINTS] = {
     { nullptr, nullptr,                  1,    0.0f,  0.0f,  false,    false,       "EXT_CH1"     },
     { nullptr, nullptr,                  2,    0.0f,  0.0f,  false,    false,       "EXT_CH2"     },
     { nullptr, nullptr,                  3,    0.0f,  0.0f,  false,    false,       "EXT_CH3"     },
-    { &odrv2, &odrv2_user_data,          INACTIVE_CHANNEL,  5.0f,  0.0f,  true,     true,        "REACH"       },
+    { &odrv0, &odrv0_user_data,          INACTIVE_CHANNEL,  5.0f,  0.0f,  true,     true,        "REACH"       },
     { nullptr, nullptr,                  INACTIVE_CHANNEL,  0.0f,  0.0f,  false,    false,       "UNUSED_5"    },
     { nullptr, nullptr,                  INACTIVE_CHANNEL,  0.0f,  0.0f,  false,    false,       "UNUSED_6"    },
 };
@@ -31,7 +31,7 @@ void readJointAngles() {
         if (joints[i].use_onboard_encoder) {
             // Pull position directly from ODrive encoder feedback over CAN
             // Pos_Estimate is in turns — convert to degrees
-            if (joints[i].user_data != nullptr && joints[i].user_data->received_feedback) {
+            if (joints[i].user_data->received_feedback) {
                 float turns = joints[i].user_data->last_feedback.Pos_Estimate;
                 joint_angle[i] = turns * 360.0f;
                 DBG_FLT("[ENC] Joint 0 onboard pos (deg): ", joint_angle[i]);
