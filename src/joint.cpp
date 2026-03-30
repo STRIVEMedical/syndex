@@ -6,18 +6,20 @@
 static float joint_angle[NUM_JOINTS] = {0};
 static bool   joint_homed[NUM_JOINTS]  = {false};
 
+static constexpr uint8_t INACTIVE_CHANNEL = 255;
+
 //ODRIVE 0 READS FROM ONBOARD ENCODER
 
 //NOTES FOR DEBUGGING. CHECK TO MAKE SURE THAT FIRST ODRIVE IS THE NODE 0 AND WITH RESISTOR BRIDGED
 Joint joints[NUM_JOINTS] = {
     // odrive       user_data            ch    max_t  home   has_odrv  onboard_enc  label
-    { &odrv0, &odrv0_user_data,          255,  5.0f,  0.0f,  true,     true,        "ROTATE"   }, //reads from onboard encoder 
-    { &odrv1, &odrv1_user_data,          1,    5.0f,  0.0f,  true,     true,        "LIFT"  },
-    { &odrv2, &odrv2_user_data,          2,    5.0f,  0.0f,  true,     true,        "REACH" },
-    { nullptr, nullptr,                  3,    0.0f,  0.0f,  false,    false,       "ELBOW"       },
-    { nullptr, nullptr,                  4,    0.0f,  0.0f,  false,    false,       "WRIST_PITCH" },
-    { nullptr, nullptr,                  5,    0.0f,  0.0f,  false,    false,       "WRIST_ROLL"  },
-    { nullptr, nullptr,                  6,    0.0f,  0.0f,  false,    false,       "TOOL"        },
+    { nullptr, nullptr,                  0,    0.0f,  0.0f,  false,    false,       "EXT_CH0"     },
+    { nullptr, nullptr,                  1,    0.0f,  0.0f,  false,    false,       "EXT_CH1"     },
+    { nullptr, nullptr,                  2,    0.0f,  0.0f,  false,    false,       "EXT_CH2"     },
+    { nullptr, nullptr,                  3,    0.0f,  0.0f,  false,    false,       "EXT_CH3"     },
+    { &odrv2, &odrv2_user_data,          INACTIVE_CHANNEL,  5.0f,  0.0f,  true,     true,        "REACH"       },
+    { nullptr, nullptr,                  INACTIVE_CHANNEL,  0.0f,  0.0f,  false,    false,       "UNUSED_5"    },
+    { nullptr, nullptr,                  INACTIVE_CHANNEL,  0.0f,  0.0f,  false,    false,       "UNUSED_6"    },
 };
 void initJoints() {
     Serial.println("Joints initialized");
@@ -38,6 +40,10 @@ void readJointAngles() {
             }
 
         } else {
+            if (joints[i].sensor_channel > 3) {
+                continue;
+            }
+
             // AS5600 via I2C mux for all joints configured to use external encoders
             tcaSelect(joints[i].sensor_channel);
             delayMicroseconds(200);

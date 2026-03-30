@@ -26,7 +26,7 @@
 #endif
 
 // ── Print throttle ────────────────────────────────────────────
-#define PRINT_INTERVAL_MS 100
+#define PRINT_INTERVAL_MS 2000
 
 void setup();
 
