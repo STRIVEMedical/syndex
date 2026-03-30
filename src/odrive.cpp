@@ -13,6 +13,7 @@
 #include <FlexCAN_T4.h>
 #include "ODriveFlexCAN.hpp"
 #include "i2c.h"
+#include "main.h"
 
 // Define global instances declared as extern in odrive.h
 // CAN interface for Teensy 4.1 (CAN1 port)
@@ -269,6 +270,13 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data) {
     pumpEvents(can_intf);
   }
   Serial.println("ODrive Found!");
+
+#if READ_ONLY_ENCODER_TEST
+  Serial.println("READ_ONLY_ENCODER_TEST=1: skipping velocity/closed-loop transitions");
+  Serial.println("ODrive Read-Only Ready!");
+  return true;
+#endif
+
   Serial.println("Entering velocity control for admittance...");
   enable_velocity_control(odrv, data);
   Serial.println("Entering closed loop control...");

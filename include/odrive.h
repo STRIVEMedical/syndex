@@ -35,7 +35,7 @@ struct ODriveUserData {
   Set_Controller_Mode_msg_t last_input_mode;
   bool received_last_input_mode = false;
   Get_Iq_msg_t last_iq_msg;
-  bool received_iq_current;
+  bool received_iq_current = false;
 };
 
 

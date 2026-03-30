@@ -12,6 +12,9 @@
 // Set to 1 to enable serial debug output, 0 to disable
 #define DEBUG 1
 
+// Set to 1 for encoder/ODrive read-only bring-up (no motor mode changes, no velocity commands)
+#define READ_ONLY_ENCODER_TEST 1
+
 #if DEBUG
   #define DBG(msg)        Serial.println(msg)
   #define DBG_VAL(k, v)   do { Serial.print(k); Serial.println(v);    } while(0)
