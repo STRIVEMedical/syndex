@@ -73,6 +73,14 @@ void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data);
  */
 void emergencyStop();
 
+/**
+ * @brief Dumps all ODrive configuration and status values
+ * 
+ * @usage Call to inspect ODrive hardware status, errors, and power
+ * @note Sends requests over CAN and prints responses to Serial
+ */
+void dumpODriveConfig();
+
 
 void setOdriveTorque(ODriveCAN &odrv, ODriveUserData &data, float torque);
 

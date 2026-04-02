@@ -185,6 +185,133 @@ void emergencyStop() {
 
   Serial.println("Emergency Stop!");
 }
+
+/**
+ * @brief Dumps all ODrive configuration and status values
+ * 
+ * Queries and displays:
+ * - Hardware version
+ * - Error codes
+ * - Bus voltage and current
+ * - Temperature
+ * - Motor currents
+ * - Position and velocity estimates
+ * - Power consumption
+ * 
+ * @usage Call periodically to inspect ODrive state and configuration
+ * @note Sends requests over CAN and prints responses
+//  */
+// void dumpODriveConfig() {
+//     Serial.println();
+//     Serial.println("======================================== ODRIVE STATUS =========================================");
+    
+//     // ODrive 0
+//     Serial.println("\n\t=== ODrive Node 0 ===");
+    
+//     // Get_Error_msg_t err0;
+//     // if (odrv0.getError(err0, 100)) {
+//     //     Serial.print("\tError Code: 0x");
+//     //     Serial.println(err0.Error_Code, HEX);
+//     // }
+    
+//     Get_Bus_Voltage_Current_msg_t bus0;
+//     if (odrv0.getBusVI(bus0, 100)) {
+//         Serial.print("\tBus: ");
+//         Serial.print(bus0.Bus_Voltage, 1);
+//         Serial.print("V @ ");
+//         Serial.print(bus0.Bus_Current, 2);
+//         Serial.println("A");
+//     }
+    
+//     Get_Temperature_msg_t temp0;
+//     if (odrv0.getTemperature(temp0, 100)) {
+//         Serial.print("\tTemp: ");
+//         Serial.print(temp0.Temp, 1);
+//         Serial.println("°C");
+//     }
+    
+//     Get_Iq_msg_t iq0;
+//     if (odrv0.getCurrents(iq0, 100)) {
+//         Serial.print("\tMotor Current (Iq): ");
+//         Serial.print(iq0.Iq_Setpoint, 2);
+//         Serial.print("A (meas: ");
+//         Serial.print(iq0.Iq_Measured, 2);
+//         Serial.println("A)");
+//     }
+    
+//     Get_Encoder_Estimates_msg_t fb0;
+//     if (odrv0.getFeedback(fb0, 100)) {
+//         Serial.print("\tPosition: ");
+//         Serial.print(fb0.Pos_Estimate, 3);
+//         Serial.print(" turns, Velocity: ");
+//         Serial.print(fb0.Vel_Estimate, 2);
+//         Serial.println(" turns/s");
+//     }
+    
+//     Get_Powers_msg_t pwr0;
+//     if (odrv0.getPower(pwr0, 100)) {
+//         Serial.print("\tPower: ");
+//         Serial.print(pwr0.Mechanical_Power, 1);
+//         Serial.print("W (elec: ");
+//         Serial.print(pwr0.Electrical_Power, 1);
+//         Serial.println("W)");
+//     }
+    
+//     // ODrive 1
+//     Serial.println("\n\t=== ODrive Node 1 ===");
+    
+//     Get_Error_msg_t err1;
+//     if (odrv1.getError(err1, 100)) {
+//         Serial.print("\tError Code: 0x");
+//         Serial.println(err1.Active_Errors, HEX);
+//     }
+    
+//     Get_Bus_Voltage_Current_msg_t bus1;
+//     if (odrv1.getBusVI(bus1, 100)) {
+//         Serial.print("\tBus: ");
+//         Serial.print(bus1.Bus_Voltage, 1);
+//         Serial.print("V @ ");
+//         Serial.print(bus1.Bus_Current, 2);
+//         Serial.println("A");
+//     }
+    
+//     Get_Temperature_msg_t temp1;
+//     if (odrv1.getTemperature(temp1, 100)) {
+//         Serial.print("\tTemp: ");
+//         Serial.print(temp1.Temp, 1);
+//         Serial.println("°C");
+//     }
+    
+//     Get_Iq_msg_t iq1;
+//     if (odrv1.getCurrents(iq1, 100)) {
+//         Serial.print("\tMotor Current (Iq): ");
+//         Serial.print(iq1.Iq_Setpoint, 2);
+//         Serial.print("A (meas: ");
+//         Serial.print(iq1.Iq_Measured, 2);
+//         Serial.println("A)");
+//     }
+    
+//     Get_Encoder_Estimates_msg_t fb1;
+//     if (odrv1.getFeedback(fb1, 100)) {
+//         Serial.print("\tPosition: ");
+//         Serial.print(fb1.Pos_Estimate, 3);
+//         Serial.print(" turns, Velocity: ");
+//         Serial.print(fb1.Vel_Estimate, 2);
+//         Serial.println(" turns/s");
+//     }
+    
+//     Get_Powers_msg_t pwr1;
+//     if (odrv1.getPower(pwr1, 100)) {
+//         Serial.print("\tPower: ");
+//         Serial.print(pwr1.Mechanical_Power, 1);
+//         Serial.print("W (elec: ");
+//         Serial.print(pwr1.Electrical_Power, 1);
+//         Serial.println("W)");
+//     }
+    
+//     Serial.println("===========================================================================================");
+//     Serial.println();
+// }
 /**
  * @brief Performs homing sequence using AS5600 absolute encoders
  * 
