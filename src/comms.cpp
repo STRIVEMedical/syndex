@@ -117,6 +117,7 @@ ODriveCAN odrv2(wrap_can_intf(can_intf), ODRV2_NODE_ID);  // Node ID 2
 // Array of ODrive pointers for easy iteration
 ODriveCAN* odrives[] = {&odrv0, &odrv1, &odrv2};
 
+
 // User data structures for storing ODrive status information
 ODriveUserData odrv0_user_data;  // Status data for ODrive 0
 ODriveUserData odrv1_user_data;  // Status data for ODrive 1

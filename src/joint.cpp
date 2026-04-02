@@ -11,6 +11,7 @@ Joint joints[NUM_JOINTS] = {
     { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
     { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
     { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
+
 };
 
 void initJoints() {
@@ -66,29 +67,55 @@ void readJointAngles(){
 }
 
 
-// Print joint status to serial
+// Print joint status to serial with nice formatting
 void printJointStatus() {
-    Serial.println("=== Joint Status ===");
+    // Header
+    Serial.println();
+    Serial.println("======================================== JOINT STATUS ========================================");
+    Serial.println(" ID | Label         | Angle      | Sensor        | Velocity  | Homed | Torque");
+    Serial.println("----+---------------+------------+---------------+-----------+-------+----------");
+    
+    // Joint data
     for (int i = 0; i < NUM_JOINTS; i++) {
-        Serial.print("J");
+        // Joint ID
+        Serial.print("  ");
         Serial.print(i);
-        Serial.print(": ");
-        if (joints[i].label != nullptr) {
-            Serial.print(joints[i].label);
-        } else {
-            Serial.print("UNNAMED");
-        }
-        Serial.print(", SensorCH");
-        Serial.print(joints[i].sensor_channel);
-        Serial.print(", Angle=");
+        Serial.print(" | ");
+        
+        // Label (left-aligned, 13 chars)
+        const char* label = (joints[i].label != nullptr) ? joints[i].label : "UNNAMED";
+        Serial.print(label);
+        for (int pad = 0; pad < (13 - strlen(label)); pad++) Serial.print(" ");
+        Serial.print(" | ");
+        
+        // Angle (right-aligned, 10 chars with one decimal)
+        Serial.print("     ");
         Serial.print(joints[i].angle, 1);
-        Serial.print("°, Home=");
-        Serial.print(joints[i].home_angle, 0);
-        Serial.print("°, Homing=");
-        Serial.print(joints[i].is_homed ? "YES" : "NO");
-        Serial.print(", Torque=");
+        Serial.print("° | ");
+        
+        // Sensor channel/type (left-aligned, 13 chars)
+        if (joints[i].sensor_channel == INACTIVE_CHANNEL) {
+            Serial.print("ODrive      ");
+        } else {
+            Serial.print("CH");
+            Serial.print(joints[i].sensor_channel);
+            for (int pad = 0; pad < (11 - (joints[i].sensor_channel >= 10 ? 2 : 1)); pad++) Serial.print(" ");
+        }
+        Serial.print(" | ");
+        
+        // Velocity (right-aligned, 9 chars)
+        Serial.print("   ");
+        Serial.print(joints[i].velocity, 2);
+        Serial.print(" | ");
+        
+        // Homed status
+        Serial.print(joints[i].is_homed ? "YES  " : "NO   ");
+        Serial.print("| ");
+        
+        // Torque
         Serial.print(joints[i].target_torque, 2);
-        Serial.println("Nm");
+        Serial.println(" Nm");
     }
-    Serial.println("====================");
+    Serial.println("==========================================================================================");
+    Serial.println();
 }

@@ -148,8 +148,7 @@ bool verifyUSB(){
 bool verifyODriveComms(){
     // Check all ODrives are still sending heartbeats over CAN
     if (!odrv0_user_data.received_heartbeat ||
-        !odrv1_user_data.received_heartbeat ||
-        !odrv2_user_data.received_heartbeat) {
+        !odrv1_user_data.received_heartbeat) {
         setError(ODRIVE_ERROR);
         return false;       // An ODrive stopped responding
     }
@@ -157,6 +156,7 @@ bool verifyODriveComms(){
         return true;
     }
 }
+
 
 bool verifyConnectedI2CDevices() {
     for (uint8_t i = 0; i < NUM_JOINTS; i++) {
@@ -299,6 +299,8 @@ void enableODrivePacketSend()
         currState = ERROR_STATE;
         return;
     }
+
+
     // TODO: confirm what values armStatus and odriveFaults should hold
     // status.armStatus = 
     // status.odriveFaults = 

@@ -43,7 +43,13 @@ Per-ODrive initialization:
 - waits for heartbeat
 - transitions to closed-loop control
 */
-bool initOdrive(ODriveCAN &odrv, ODriveUserData &data);
+bool initOdrive(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id);
+
+/*
+Pre-registers ODrive callbacks before CAN starts receiving messages.
+This prevents the "missing callback" error when heartbeats arrive early.
+*/
+void preInitOdriveCallbacks();
 
 /*
 - Initializes Serial for debugging

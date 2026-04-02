@@ -27,6 +27,9 @@ void setup() {
   // Joint map/state must exist before READY telemetry path runs.
   initJoints();
 
+  // Pre-register ODrive callbacks before CAN starts (prevents "missing callback" error)
+  preInitOdriveCallbacks();
+
   Serial.println("State-machine test harness started");
   Serial.println("Waiting for CMD_PING to enter CONNECTED/READY telemetry flow...");
 }
@@ -45,5 +48,13 @@ void loop() {
     Serial.print(stateName(prevState));
     Serial.print(" -> ");
     Serial.println(stateName(currState));
+  }
+
+  // DEBUG: Print encoder readings every 500ms for testing
+  static unsigned long lastPrint = 0;
+  if (millis() - lastPrint > 500) {
+    lastPrint = millis();
+    readJointAngles();      // Update all joint angle/velocity values
+    printJointStatus();     // Print all joints in easy-to-read format
   }
 }

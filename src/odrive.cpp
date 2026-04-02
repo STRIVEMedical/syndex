@@ -81,6 +81,7 @@ void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data) {
  * 
  * @param odrv Reference to the ODrive instance to initialize
  * @param data Reference to the ODrive's status data structure
+ * @param node_id CAN node ID of this ODrive (0 or 1)
  * 
  * @return true if ODrive initializes successfully, false otherwise
  * 
@@ -91,25 +92,53 @@ void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data) {
  *   3. Enable torque control mode for gravity compensation
  * @warning Blocks until heartbeat received - ensure ODrive is powered
  */
-bool initOdrive(ODriveCAN &odrv, ODriveUserData &data) {
-  // Register callbacks for status updates
-  odrv.onStatus(onHeartbeat, &data);
-  odrv.onFeedback(onFeedback, &data);
-
+bool initOdrive(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
+  // Callbacks already pre-registered in preInitOdriveCallbacks() before CAN started
+  
   // Wait for heartbeat to confirm ODrive is online
-  Serial.println("Waiting for ODrive...");
+  Serial.print("Waiting for ODrive Node ");
+  Serial.print(node_id);
+  Serial.println("...");
   while (!data.received_heartbeat) {
     pumpEvents(can_intf);
   }
-  Serial.println("ODrive Found!");
-  Serial.println("Entering closed loop control...");
-  enable_closed_loop(odrv, data); 
+  Serial.print("ODrive Node ");
+  Serial.print(node_id);
+  Serial.print(" Found! Axis State: 0x");
+  Serial.println(data.last_heartbeat.Axis_State, HEX);
+  // Serial.println("Entering closed loop control...");
+  // enable_closed_loop(odrv, data); 
   // Enable torque control mode (required for gravity compensation)
   // Serial.println("Enabling torque control and input passthrough...");
   // enable_torque_control(odrv, data);
 
-  Serial.println("ODrive Running!");
+  Serial.print("ODrive Node ");
+  Serial.print(node_id);
+  Serial.println(" Running!");
   return true;
+}
+
+/* =========================
+ * PRE-INIT CALLBACKS
+ * ========================= */
+
+/**
+ * @brief Pre-registers ODrive callbacks before CAN messaging starts
+ * 
+ * This prevents the "missing callback" error that occurs when heartbeats
+ * arrive before callbacks are registered in initOdrive().
+ * 
+ * @usage Called in setup() before any state machine transitions
+ */
+void preInitOdriveCallbacks() {
+  odrv0.onStatus(onHeartbeat, &odrv0_user_data);
+  odrv0.onFeedback(onFeedback, &odrv0_user_data);
+  
+  odrv1.onStatus(onHeartbeat, &odrv1_user_data);
+  odrv1.onFeedback(onFeedback, &odrv1_user_data);
+
+  odrv2.onStatus(onHeartbeat, &odrv2_user_data);
+  odrv2.onFeedback(onFeedback, &odrv2_user_data);
 }
 
 /* =========================
@@ -129,13 +158,14 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data) {
 bool initMultiOdrives() {
   //comms verified in verifyOdrive
 
-  // Initialize ODrive 0,1,2
-  if (!initOdrive(odrv0, odrv0_user_data) 
-    || !initOdrive(odrv1, odrv1_user_data) 
-    || !initOdrive(odrv2, odrv2_user_data)) {
+  // Initialize ODrive 0,1
+  if (!initOdrive(odrv0, odrv0_user_data, 0) 
+    || !initOdrive(odrv1, odrv1_user_data, 1)
+    || !initOdrive(odrv1, odrv1_user_data, 1)) {
     // Serial.println("Odrive init failed!");
     return false;
   }
+
 
   Serial.println("All ODrives Running!");
   return true;
