@@ -153,37 +153,15 @@ void loop() {
         Serial.print("dt(ms)=");
         Serial.println(dt * 1000.0f, 2);
 
-<<<<<<< HEAD
-        // Print only REACH onboard-encoder joint (ODrive encoder)
-        bool printed_odrive = false;
-        for (int i = 0; i < NUM_JOINTS; i++) {
-            if (joints[i].use_onboard_encoder && strcmp(joints[i].label, "REACH") == 0) {
-                Serial.print("ODRIVE ["); Serial.print(joints[i].label); Serial.print("] angle=");
-                Serial.print(getJointAngle(i), 2); Serial.println(" deg");
-                printed_odrive = true;
-                break;
-=======
         // Print configured ODrive joints side-by-side on one line.
         int odrive_indices[2] = {-1, -1};
         int odrive_count = 0;
         for (int i = 0; i < NUM_JOINTS && odrive_count < 2; i++) {
             if (joints[i].has_odrive && joints[i].use_onboard_encoder) {
                 odrive_indices[odrive_count++] = i;
->>>>>>> 665a18d (working 2 odrive readings)
             }
         }
 
-<<<<<<< HEAD
-        // Print up to 4 external encoder joints
-        int ext_printed = 0;
-        for (int i = 0; i < NUM_JOINTS && ext_printed < 4; i++) {
-            if (!joints[i].use_onboard_encoder && joints[i].sensor_channel <= 3) {
-                Serial.print("EXT"); Serial.print(ext_printed + 1);
-                Serial.print(" ["); Serial.print(joints[i].label); Serial.print(" ch=");
-                Serial.print(joints[i].sensor_channel); Serial.print("] angle=");
-                Serial.print(getJointAngle(i), 2); Serial.println(" deg");
-                ext_printed++;
-=======
         if (odrive_count == 0) {
             Serial.println("ODRIVE [N/A] angle=N/A");
         } else {
@@ -198,7 +176,6 @@ void loop() {
                 if (k < odrive_count - 1) {
                     Serial.print("  ||  ");
                 }
->>>>>>> 665a18d (working 2 odrive readings)
             }
             Serial.println();
         }
