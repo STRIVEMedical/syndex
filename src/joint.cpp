@@ -1,37 +1,28 @@
 #include "joint.h"
-#include "i2c.h"
+#include "comms.h"
 #include "odrive.h"
 
-// Array of all joints
-static Joint joints[NUM_JOINTS];
+Joint joints[NUM_JOINTS] = {
+    // odrive  user_data         sensor_ch         max_t  home   onboard  label      angle  raw  vel    homed  target_t
+    { nullptr, nullptr,          0,                0.0f,  0.0f,  false,   "EXT_CH0", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          1,                0.0f,  0.0f,  false,   "EXT_CH1", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          2,                0.0f,  0.0f,  false,   "EXT_CH2", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          3,                0.0f,  0.0f,  false,   "EXT_CH3", 0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
+};
 
-// Map an ODrive pointer to a readable label.
-static const char* odriveLabel(const ODriveCAN* odrv) {
-    if (odrv == &odrv0) return "odrv0";
-    if (odrv == &odrv1) return "odrv1";
-    // if (odrv == &odrv2) return "odrv2";
-    // if (odrv == &odrv3) return "odrv3";
-    // if (odrv == &odrv4) return "odrv4";
-    // if (odrv == &odrv5) return "odrv5";
-    // if (odrv == &odrv6) return "odrv6";
-    return "unknown";
-}
-
-// Initialize joints with default mapping
-//CHANGE VALUES TO MATCH HARDWARE
 void initJoints() {
-    // Default mapping - CHANGE THESE TO MATCH YOUR ARM!
-    // Format: {odrive_id, sensor_channel, angle, raw_value, is_homed, target_torque, home_angle, max_torque}
-    
+    // Keep hardware mapping and labels; reset only runtime state.
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        joints[i].angle = 0.0f;
+        joints[i].rawValue = 0;
+        joints[i].velocity = 0.0f;
+        joints[i].is_homed = false;
+        joints[i].target_torque = 0.0f;
+    }
 
-    joints[0] = {&odrv0, 0, 0.0, 0.0, false, 0.0, 0.0, 5.0};   // pulley1
-    joints[1] = {&odrv1, 1, 0.0, 0.0, false, 0.0, 0.0, 5.0};   // pulley2
-    // joints[2] = {&odrv2, 2, 0.0, 0.0, false, 0.0, 90.0, 3.0};  // arm_3
-    // joints[3] = {&odrv3, 3, 0.0, 0.0, false, 0.0, 0.0, 2.0};   // part_18
-    // joints[4] = {&odrv4, 4, 0.0, 0.0, false, 0.0, 0.0, 1.0};   // manipulatortestassem
-    // joints[5] = {&odrv5, 5, 0.0, 0.0, false, 0.0, 0.0, 0.5};   // (wrist joint)
-    // joints[6] = {&odrv6, 6, 0.0, 0.0, false, 0.0, 0.0, 0.5};   // (tool joint)
-    
     Serial.println("Joints initialized with configured mapping");
 }
 
@@ -44,19 +35,36 @@ Joint* getJoint(uint8_t id) {
     return &joints[id];
 }
 
-// Read all joint angles and raw value from AS5600 encoders
-void readJointAnglesAndRaw() {
-    for (int i = 0; i < NUM_JOINTS; i++) {
-        // Select the correct I2C mux channel for this joint
-        tcaSelect(joints[i].sensor_channel);
-        delayMicroseconds(200);
-        
-        // Read raw encoder value
-        joints[i].rawValue  = readRawAS5600();
-        // Convert to angle and store in joint
-        joints[i].angle = computeAngle(i, joints[i].rawValue); 
+
+// Read from all odrives and external encoders (also reads and updated velocity)
+void readJointAngles(){
+    for(int i = 0; i < NUM_JOINTS; i++){
+        //Joint reads from Odrive encoder
+        if(joints[i].use_onboard_encoder){
+            //read position from CAN callback
+            float turns = joints[i].user_data->last_feedback.Pos_Estimate;
+            float velocity_est = joints[i].user_data->last_feedback.Vel_Estimate;
+            joints[i].angle = turns * 360.0f;
+            joints[i].velocity = velocity_est;
+
+        }else{
+            //Joint reads from external encoder
+            tcaSelect(joints[i].sensor_channel);
+            delayMicroseconds(200);
+            uint16_t raw  = readRawAS5600();
+            joints[i].rawValue = raw;
+            if (raw != 0xFFFF) {
+                joints[i].angle = computeAngle(i, raw);
+                joints[i].velocity = 0.0f;
+            } else {
+            Serial.print("[WARN] AS5600 read failed on channel ");
+            Serial.println((int)joints[i].sensor_channel);
+            joints[i].velocity = 0.0f;
+            }
+        }
     }
 }
+
 
 // Print joint status to serial
 void printJointStatus() {
@@ -64,8 +72,12 @@ void printJointStatus() {
     for (int i = 0; i < NUM_JOINTS; i++) {
         Serial.print("J");
         Serial.print(i);
-        Serial.print(": ODrive");
-        Serial.print(odriveLabel(joints[i].odrive));
+        Serial.print(": ");
+        if (joints[i].label != nullptr) {
+            Serial.print(joints[i].label);
+        } else {
+            Serial.print("UNNAMED");
+        }
         Serial.print(", SensorCH");
         Serial.print(joints[i].sensor_channel);
         Serial.print(", Angle=");

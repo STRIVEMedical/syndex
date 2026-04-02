@@ -5,23 +5,27 @@
 #include <Arduino.h>
 #include "odrive.h"
 
-#define NUM_JOINTS 2 
+#define INACTIVE_CHANNEL 255
+#define NUM_JOINTS 7
 
 // Stores hardware mapping for one joint
+
 struct Joint {
-    // Hardware mapping
-    ODriveCAN* odrive;        // Which ODrive controls this joint (0-6)
-    uint8_t sensor_channel;   // Which I2C mux channel reads this joint (0-7)
-    
-    // Current state
-    float angle;              // Current angle in degrees
-    float rawValue;           //raw value from encoders
-    bool is_homed;            // Has joint been homed?
-    float target_torque;      // Torque to apply (Nm)
-    
     // Configuration
-    float home_angle;         // Home position in degrees
-    float max_torque;         // Safety limit in Nm
+    ODriveCAN*      odrive;         // null if no ODrive on this joint
+    ODriveUserData* user_data;      // null if no ODrive on this joint
+    uint8_t         sensor_channel;  // I2C mux channel — INACTIVE_CHANNEL if not used (i.e joint uses odrive)
+    float           max_torque;     // safety limit (Nm)
+    float           home_angle;     // home position (deg)
+    bool            use_onboard_encoder; // true = read pos from ODrive, not AS5600
+    const char*     label;          // debug name
+
+    // Runtime state
+    float           angle;          // latest joint angle (deg)
+    uint16_t        rawValue;       // latest raw encoder reading (0-4095, 0xFFFF on read failure)
+    float           velocity;        // latest velocity estimate from odrive 
+    bool            is_homed;       // joint homing status
+    float           target_torque;  // commanded torque target (Nm)
 };
 
 // Initialize all joints with default mapping
@@ -31,7 +35,7 @@ void initJoints();
 Joint* getJoint(uint8_t id);
 
 // Read all joint angles and raw value from AS5600 encoders
-void readJointAnglesAndRaw();
+void readJointAngles();
 
 // Print joint status
 void printJointStatus();

@@ -1,11 +1,15 @@
 #include "states.h"
 #include "odrive.h"
 #include "LEDs.h"
-#include "i2c.h"
+#include "comms.h"
 #include "buttons.h"
 #include "USB.h"
 #include "Wire.h"
 #include "joint.h"
+#include "errors.h"
+
+state_e currState = BOOTUP;
+errorCode_e currError = NO_ERROR;
 
 /*
  * Verifies ODrive system is initialized and all ODrives are online.
@@ -14,7 +18,7 @@
  * Returns true if all ODrives are online, false if any layer fails.
  */
 bool verifyODrive(){
-     if (!initOdriveSystem()) {
+     if (!initCommunications()) {
         setError(CONNECTION_ERROR); // CAN or I2C layer failed
         return false;
     }
@@ -51,6 +55,9 @@ bool verifyI2C(){
  * Returns true if all buttons are unpressed, false if any button is held down.
  */
 bool verifyButton(){
+    // Ensure GPIO state used by boot checks is initialized.
+    Buttons::setup();
+
     if (digitalRead(buttonPins::powerButton.pin) == LOW ||
         digitalRead(buttonPins::autoHoming.pin) == LOW ||
         digitalRead(buttonPins::triggerButton.pin) == LOW ||
@@ -94,27 +101,6 @@ bool verifyLED(){
 }
 
 
-    bool connected = false;
-    packet pong;
-
-    while(!connected){
-        if(Serial.available() > 0){
-            packet response = Serial.read();
-
-            if(response.header.packetType == CMD_PING){ //checking connectivity host->device
-                pong = packet(CMD_PONG);
-                Serial.write(pong);
-                // Serial.write(RESP_PONG); //checking connectivity device->host
-                connected = true;
-            }
-
-        }
-        yield(); //needed to allow essential usb background tasks 
-
-    }
-
-}
-
 /*
 * Polls serial buffer for an incoming CMD_PING packet from the host PC.
 * The host sends CMD_PING (0x01) to initiate connection with the device.
@@ -122,8 +108,13 @@ bool verifyLED(){
 * TODO: Implement using USB.cpp packet parsing once USB.cpp is available.
 */
 bool pollCmdPing(){
-   
+    if (Serial.available() <= 0) {
+        return false;
+    }
 
+    // Minimal ping check: host sends raw CMD_PING byte.
+    const int incoming = Serial.read();
+    return incoming == CMD_PING;
 }
 
 /*
@@ -132,7 +123,9 @@ bool pollCmdPing(){
 * TODO: Implement using USB.cpp packet serialization once USB.cpp is available.
 */
 void sendCmdPong(){
-
+    packet pong(RESP_PONG);
+    std::vector<uint8_t> bytes = pong.serialize();
+    Serial.write(bytes.data(), bytes.size());
 }
 
 /*
@@ -153,8 +146,10 @@ bool verifyUSB(){
 
 //Checks whether the ODrive comms are online
 bool verifyODriveComms(){
-    // Check both ODrives are still sending heartbeats over CAN
-    if (!odrv0_user_data.received_heartbeat || !odrv1_user_data.received_heartbeat) {
+    // Check all ODrives are still sending heartbeats over CAN
+    if (!odrv0_user_data.received_heartbeat ||
+        !odrv1_user_data.received_heartbeat ||
+        !odrv2_user_data.received_heartbeat) {
         setError(ODRIVE_ERROR);
         return false;       // An ODrive stopped responding
     }
@@ -164,12 +159,22 @@ bool verifyODriveComms(){
 }
 
 bool verifyConnectedI2CDevices() {
-    for (uint8_t ch = 0; ch < 7; ch++) {
-        tcaSelect(ch);                      // Selects channels from 0 to 6 (7 encoders)
+    for (uint8_t i = 0; i < NUM_JOINTS; i++) {
+        Joint* j = getJoint(i);
+        if (j == nullptr) {
+            setError(I2C_ERROR);
+            return false;
+        }
+
+        if (j->use_onboard_encoder || j->sensor_channel == INACTIVE_CHANNEL) {
+            continue;
+        }
+
+        tcaSelect(j->sensor_channel);
         uint16_t raw = readRawAS5600();
         if (raw == 0xFFFF) {
             setError(I2C_ERROR);
-            return false;                   // Encoder on this channel isnt responding
+            return false;
         }
     }
     return true;
@@ -204,6 +209,7 @@ bool allConnectionsReady()
 //Checks whether simulation is already homed
 bool isHomed(){
     //Placeholder for homing logic
+    return false;
 }
 
 //Initiates the homing proccess
@@ -215,6 +221,7 @@ void startHoming(){
 //Checks whether the homing proccess has been homed
 bool verifyHoming(){
 //Placeholder for Homing logic
+    return false;
 }
 
 /*
@@ -229,8 +236,8 @@ void enableI2CPacketSend()
 // payload struct to hold angle and velocity data for all joints
     telemJointDataPayload data;
 
-    // read all joint angles and raw values into Joint structs
-    readJointAnglesAndRaw();
+    // read all joint angles and velocities into Joint structs
+    readJointAngles();
 
     for (int i = 0; i < NUM_JOINTS; i++) {
         Joint* j = getJoint(i);
@@ -245,9 +252,8 @@ void enableI2CPacketSend()
             return; // exit immediately — invalid joint
         }
 
-        // AS5600 is 12-bit — valid range is 0 to 4095
-        // anything above 4095 means encoder did not respond
-        if (j->rawValue > 4095.0f) {
+        // External encoder joints use raw AS5600 values; 0xFFFF indicates read failure.
+        if (!j->use_onboard_encoder && j->rawValue == 0xFFFF) {
             setError(I2C_ERROR);
             // notify host PC that an encoder failure occurred
             packet errPacket(ERROR_MESSAGE);
@@ -258,10 +264,7 @@ void enableI2CPacketSend()
             return;
         }
 
-        // cast float rawValue to uint16_t to match jnAngle type
-        // AS5600 raw value fits in uint16_t (0-4095 within 0-65535 range)
-        data.joints[i].jnAngle = (uint16_t)j->rawValue;
-        data.joints[i].jnVelocity = 0; // placeholder — velocity not yet implemented
+        buildTelemJointPayload(data, i, j->angle, j->velocity);
     }
 
     // all joints read successfully — build and send telemetry packet to host PC
@@ -271,37 +274,6 @@ void enableI2CPacketSend()
     // transmit byte stream to host PC over USB serial
     Serial.write(I2CBuffer.data(), I2CBuffer.size());
 }
-
-// Previous implementation — manually called tcaSelect() and readRawAS5600() per channel
-// Replaced by readJointAnglesAndRaw() from joint.cpp which handles all channels internally
-// Team to decide which implementation to keep
-//
-//     telemJointDataPayload data;
-//     for (int ch = 0; ch < NUM_JOINTS; ch++) {
-//         // select encoder channel on TCA9548A multiplexer
-//         tcaSelect(ch);
-//         // read raw angle value from AS5600 encoder
-//         uint16_t raw = readRawAS5600();
-//
-//         // 0xFFFF means encoder did not respond — impossible valid angle
-//         if (raw == 0xFFFF) {
-//             setError(I2C_ERROR);
-//             // notify host PC that an encoder failure occurred
-//             packet errPacket(ERROR_MESSAGE);
-//             std::vector<uint8_t> errBuffer = errPacket.serialize();
-//             Serial.write(errBuffer.data(), errBuffer.size());
-//             // safe the system and exit function immediately
-//             currState = ERROR_STATE;
-//             return;
-//         }
-//
-//         data.joints[ch].jnAngle = raw;     // store raw angle
-//         data.joints[ch].jnVelocity = 0;    // placeholder for velocity
-//     }
-//     // all encoders read successfully — build and send telemetry packet to host PC
-//     packet I2CPacket(TELEM_JOINT_DATA, data);
-//     std::vector<uint8_t> I2CBuffer = I2CPacket.serialize();
-//     Serial.write(I2CBuffer.data(), I2CBuffer.size());
 
 /*
  * Checks ODrive heartbeats are still active and streams ODrive
@@ -314,10 +286,10 @@ void enableI2CPacketSend()
 void enableODrivePacketSend()
 {
     // payload struct to hold ODrive status data
-    telemStatusPayload status;
+    telemStatusPayload status{};
 
     // check ODrive heartbeats are still active over CAN
-    if (!odrv0_user_data.received_heartbeat || !odrv1_user_data.received_heartbeat) {
+    if (!odrv0_user_data.received_heartbeat || !odrv1_user_data.received_heartbeat || !odrv2_user_data.received_heartbeat) {
         setError(ODRIVE_ERROR);
         // notify host PC that ODrive communication failed
         packet errPacket(ERROR_MESSAGE);
@@ -344,7 +316,8 @@ void enableODrivePacketSend()
  * Graceful shutdown prevents motors from dropping torque suddenly,
  * which could cause the arm to fall or jerk unexpectedly.
  */
-void powerOffODrives(){
+
+void stopODrives(){
     emergencyStop();
 }
 
@@ -360,15 +333,10 @@ void powerOffPeripherals(){
 
 /*
  * Cuts system power after ODrives have been stopped and hardware is safe.
- * Always called after stopODrives() or powerOffODrives()
+ * Always called after stopODrives()
 */
 void endPower(){
 
-}
-
-//Stops the ODrives
-void stopODrives(){
-    emergencyStop();
 }
 
 /*
@@ -552,7 +520,7 @@ void stateUpdate()
     // Controlled shutdown sequence.
     // Motors idled gracefully before power is cut.
     case POWERINGOFF:
-        powerOffODrives();      // gracefully idle all ODrive motors
+        stopODrives();      // gracefully idle all ODrive motors
         powerOffPeripherals();  // turn off all LEDs
         endPower();             // cut system power
         break;

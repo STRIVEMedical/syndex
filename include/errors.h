@@ -12,12 +12,14 @@ typedef enum {
     CONNECTION_ERROR,
 } errorCode_e;
 
+extern errorCode_e currError;
+
 //Reports if an error has occured
-void setError(errorCode_e);
+void setError(errorCode_e err);
 //Checks current error
-void getError(errorCode_e);
+errorCode_e getError();
 //Resets the state after recovery
 void clearError(void);
 //Checks whether the error still exists
-bool hasError(void);
+bool errorCheck(void);
 #endif

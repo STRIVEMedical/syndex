@@ -2,21 +2,10 @@
 #define ODRIVE_H
 
 #include <Arduino.h>
-#include "ODriveCAN.h"
-#include <FlexCAN_T4.h>
-
-
-/* CAN Settings ----------------------------------------------------*/
-#define CAN_BAUDRATE 250000
-
-// Node IDs for each ODrive
-#define ODRV0_NODE_ID 0
-#define ODRV1_NODE_ID 1
+#include "comms.h"
 
 struct ODriveStatus; // Teensy compile hack
 
-/* FlexCAN Interface -----------------------------------------------*/
-extern FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can_intf;
 void pumpEvents(FlexCAN_T4_Base &can);
 /*
 Forward-declared empty struct to satisfy linker/compile-time requirements
@@ -39,41 +28,14 @@ struct ODriveUserData {
 /* ODrive Instances ------------------------------------------------*/
 extern ODriveCAN odrv0;
 extern ODriveCAN odrv1;
+extern ODriveCAN odrv2;
 
 // List of all drives for message routing
-extern ODriveCAN* odrives[2];
+extern ODriveCAN* odrives[3];
 
 extern ODriveUserData odrv0_user_data;
 extern ODriveUserData odrv1_user_data;
-
-
-/*
-Routes every incoming CAN frame to each ODriveCAN instance so each can decide
-whether the frame matches its configured node ID
-*/
-void onCanMessage(const CAN_message_t& msg);
-/*
-Stores incoming heartbeat message and marks drive as detected on CAN bus
-*/
-void onHeartbeat(Heartbeat_msg_t& msg, void* user_data);
-
-/*
-Records encoder position and velocity for the associated ODrive
-*/
-void onFeedback(Get_Encoder_Estimates_msg_t& msg, void* user_data);
-
-/*
-Sets up odrive CAN reqs
-*/
-bool setupCan();
-
-/*
-One-time system initialization:
-- initializes Serial
-- initializes CAN
-- initializes I2C sensors
-*/
-bool initOdriveSystem();
+extern ODriveUserData odrv2_user_data;
 
 /*
 Per-ODrive initialization:

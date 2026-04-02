@@ -9,7 +9,7 @@
 #include <cstring>
 #include <cstdint>
 
-#include "i2c.h"
+#include "comms.h"
 
 //16-bit Float Conversion Functions (For Kinematics Payloads)
 uint16_t float16ToUnsigned16(float value);
@@ -85,11 +85,8 @@ struct telemJointDataPayload {
   jointData joints[7];
 };
 
-
-void buildTelemJointPayload(telemJointDataPayload& payload, int sensorID, uint16_t raw) {
-    float ang = computeAngle(sensorID, raw);
-    payload.joints[sensorID].jnAngle = ang;
-}; //Function that loads the angle from the encoder and puts it into the payload (for a single encoder)
+// Loads one joint's telemetry values into the payload entry.
+void buildTelemJointPayload(telemJointDataPayload& payload, int jointID, float angleDeg, float velocityDegPerSec);
 
 //Packet Definitions
 class packet {
@@ -99,13 +96,7 @@ public:
   uint16_t checksum;
 
   //Empty Packet Definition
-  packet() {
-    header.sync = SYNC_BYTES;
-    header.packetType = 0;
-    header.payloadSize = 0;
-    checksum = 0;
-    memset(payload, 0, MAX_PAYLOAD_SIZE);
-  }
+  packet();
 
   // Packet With Payload Definition
   template <typename T>
@@ -118,51 +109,15 @@ public:
   }
 
   // Packet Without Payload Definition
-  packet(uint8_t type) {
-    header.sync = SYNC_BYTES;
-    header.packetType = type;
-    header.payloadSize = 0;
-    checksum = calculateCRC();
-  }
+  packet(uint8_t type);
 
   // Packet to Byte Stream Conversion (Byte stream = final data to be sent)
-  std::vector<uint8_t> serialize() {
-    std::vector<uint8_t> buffer;
-    //add header bytes to byte stream
-    uint8_t* headerPtr = reinterpret_cast<uint8_t*>(&header);
-    buffer.insert(buffer.end(), headerPtr, headerPtr + sizeof(packetHeader));
-    //append payload bytes to byte stream
-    buffer.insert(buffer.end(), payload, payload + header.payloadSize);
-    //calculate CRC
-    checksum = calculateCRC();
-    //append CRC to byte stream in little-endian order
-    buffer.push_back(checksum & 0xFF);
-    buffer.push_back((checksum >> 8) & 0xFF);
-    return buffer;
-  }
+  std::vector<uint8_t> serialize();
   
 private:
   //CRC-16/ARC Checksum Calculation Algorithm
-  uint16_t calculateCRC() {
-    uint16_t crc = 0x0000;
-    crc = updateCRC(crc, header.packetType); //CRC for packetType
-    crc = updateCRC(crc, header.payloadSize); //CRC for payloadSize
-    for (uint8_t i = 0; i < header.payloadSize; ++i) { 
-      crc = updateCRC(crc, payload[i]);
-    } //CRC for all payload bytes
-    return crc; //return final CRC value (0x0000 == packet is valid)
-  }
-
-  uint16_t updateCRC(uint16_t crc, uint8_t data) {
-    crc ^= data; //XOR with current CRC
-    for (uint8_t i = 0; i < 8; ++i) {
-      if (crc & 1) //If LSB is 1, shift right and XOR with polynomial
-        crc = (crc >> 1) ^ 0xA001;
-      else //If LSB is 0, simply shift right
-        crc >>= 1;
-    }
-    return crc;
-  }
+  uint16_t calculateCRC();
+  uint16_t updateCRC(uint16_t crc, uint8_t data);
 };
 
 #endif // USB_H

@@ -12,6 +12,7 @@ typedef enum {
     POWERINGOFF,
     ERROR_STATE,
 } state_e;
+
 //Current device state
 extern state_e currState;
 
@@ -43,7 +44,6 @@ void enableI2CPacketSend();
 void enableODrivePacketSend();
 
 //PowerOff state functions
-void powerOffODrives();
 void powerOffPeripherals();
 
 //Error Enumeration (Different types of errors that may occur)
