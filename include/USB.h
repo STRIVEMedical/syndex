@@ -16,7 +16,8 @@ uint16_t float16ToUnsigned16(float value);
 float unsigned16ToFloat16(uint16_t bits);
 
 //Packet Constants
-const uint16_t SYNC_BYTES = 0x7FFE;
+// Serialized as 0x7F 0xFE on little-endian MCUs to match host framing.
+const uint16_t SYNC_BYTES = 0xFE7F;
 const uint8_t MAX_PAYLOAD_SIZE = 255;
 
 //Packet Types
