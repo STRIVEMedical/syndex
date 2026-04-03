@@ -21,7 +21,7 @@ void stateUpdate();
 //BootUp state functions
 bool verifyODrive();
 bool verifyI2C();
-bool verifyButton();
+// bool verifyButton();
 bool verifyLED();
 
 //Idle state functions

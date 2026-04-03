@@ -54,21 +54,21 @@ bool verifyI2C(){
  *   - Wiring short
  * Returns true if all buttons are unpressed, false if any button is held down.
  */
-bool verifyButton(){
-    // Ensure GPIO state used by boot checks is initialized.
-    Buttons::setup();
+// bool verifyButton(){
+//     // Ensure GPIO state used by boot checks is initialized.
+//     Buttons::setup();
 
-    if (digitalRead(buttonPins::powerButton.pin) == LOW ||
-        digitalRead(buttonPins::autoHoming.pin) == LOW ||
-        digitalRead(buttonPins::triggerButton.pin) == LOW ||
-        digitalRead(buttonPins::toolSelect.pin) == LOW) {
-        setError(BUTTON_ERROR);
-        return false;
-     }
-     else {
-        return true;
-     }
-}
+//     if (digitalRead(buttonPins::powerButton.pin) == LOW ||
+//         digitalRead(buttonPins::autoHoming.pin) == LOW ||
+//         digitalRead(buttonPins::triggerButton.pin) == LOW ||
+//         digitalRead(buttonPins::toolSelect.pin) == LOW) {
+//         setError(BUTTON_ERROR);
+//         return false;
+//      }
+//      else {
+//         return true;
+//      }
+// }
 /*
  * Verifies all LED pins are initialized and responding correctly.
  * Calls Led::setup() to configure all pins as OUTPUT, then writes HIGH
@@ -413,9 +413,9 @@ void sendErrMessage() {
         break;
 
     // Button stuck or pressed during bootup
-    case BUTTON_ERROR:
-        Serial.println("ERROR: BUTTON FAILURE");
-        break;
+    // case BUTTON_ERROR:
+    //     Serial.println("ERROR: BUTTON FAILURE");
+    //     break;
 
     // LED pin not responding during bootup verification
     case LED_ERROR:
@@ -459,7 +459,7 @@ void stateUpdate()
     // Success: power LED on, transition to IDLE.
     // Failure: transition to ERROR_STATE.
     case BOOTUP:
-        if (verifyODrive() && verifyI2C() && verifyButton() && verifyLED()) {
+        if (verifyODrive() && verifyI2C() && verifyLED()) {
             ONToggleLED(&Led::powerLed);   // power LED on = system alive
             OFFToggleLED(&Led::errorLed);  // ensure error LED is off
             currState = IDLE;

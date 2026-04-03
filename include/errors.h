@@ -7,7 +7,7 @@ typedef enum {
     NO_ERROR,
     ODRIVE_ERROR,
     I2C_ERROR,
-    BUTTON_ERROR,
+    // BUTTON_ERROR,
     LED_ERROR,
     CONNECTION_ERROR,
 } errorCode_e;

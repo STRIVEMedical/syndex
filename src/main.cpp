@@ -21,8 +21,13 @@ static const char* stateName(state_e state) {
 }
 
 void setup() {
-  Serial.begin(115200);
-  delay(200);
+  // Initialize main Serial (USB) for Unity communication
+  MAIN_SERIAL.begin(115200);
+  delay(100);
+  
+  // Initialize debug Serial (UART 1) for PuTTY monitoring
+  DEBUG_SERIAL.begin(115200);
+  delay(100);
 
   // Joint map/state must exist before READY telemetry path runs.
   initJoints();
@@ -30,8 +35,11 @@ void setup() {
   // Pre-register ODrive callbacks before CAN starts (prevents "missing callback" error)
   preInitOdriveCallbacks();
 
-  Serial.println("State-machine test harness started");
-  Serial.println("Waiting for CMD_PING to enter CONNECTED/READY telemetry flow...");
+  DEBUG_SERIAL.println("\n========== SYSTEM STARTUP ==========");
+  DEBUG_SERIAL.println("State-machine test harness started");
+  DEBUG_SERIAL.println("Debug output: Serial1 (PuTTY)");
+  DEBUG_SERIAL.println("Main comms: Serial (USB/Unity)");
+  DEBUG_SERIAL.println("====================================\n");
 }
 
 
@@ -42,26 +50,26 @@ void loop() {
   state_e prevState = currState;
   stateUpdate();
 
-  // Log transitions to verify state-machine behavior quickly over USB serial.
+  // Log state transitions to debug serial (PuTTY)
   if (currState != prevState) {
-    Serial.print("STATE: ");
-    Serial.print(stateName(prevState));
-    Serial.print(" -> ");
-    Serial.println(stateName(currState));
+    DEBUG_SERIAL.print("STATE: ");
+    DEBUG_SERIAL.print(stateName(prevState));
+    DEBUG_SERIAL.print(" -> ");
+    DEBUG_SERIAL.println(stateName(currState));
   }
 
   // DEBUG: Print encoder readings every 500ms for testing
-  // static unsigned long lastPrint = 0;
-  // if (millis() - lastPrint > 500) {
-  //   lastPrint = millis();
-  //   readJointAngles();      // Update all joint angle/velocity values
-  //   printJointStatus();     // Print all joints in easy-to-read format
-  // }
+  static unsigned long lastPrint = 0;
+  if (millis() - lastPrint > 500) {
+    lastPrint = millis();
+    readJointAngles();      // Update all joint angle/velocity values
+    printJointStatus();     // Print all joints in easy-to-read format
+  }
 
   // DEBUG: Dump ODrive config every 3 seconds for testing
-  // static unsigned long lastConfigDump = 0;
-  // if (millis() - lastConfigDump > 3000) {
-  //   lastConfigDump = millis();
-  //   dumpODriveConfig();     // Print ODrive hardware status and config
-  // }
+  static unsigned long lastConfigDump = 0;
+  if (millis() - lastConfigDump > 3000) {
+    lastConfigDump = millis();
+    dumpODriveConfig();     // Print ODrive hardware status and config
+  }
 }
