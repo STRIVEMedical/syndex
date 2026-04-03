@@ -8,6 +8,7 @@
 #include "states.h"
 #include <TeensyID.h>
 
+#include "USB.h"
 
 static const char* stateName(state_e state) {
   switch (state) {
@@ -46,6 +47,10 @@ void setup() {
 void loop() {
   // Keep CAN traffic serviced continuously (heartbeats/status/callbacks).
   pumpEvents(can_intf);
+
+  // Poll for incoming USB packets and process them
+  pollSerialPackets();
+  processIncomingPackets();
 
   state_e prevState = currState;
   stateUpdate();

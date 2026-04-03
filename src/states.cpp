@@ -101,102 +101,6 @@ bool verifyLED(){
     return true;
 }
 
-
-/*
-* Polls serial buffer for an incoming CMD_PING packet from the host PC.
-* The host sends CMD_PING (0x01) to initiate connection with the device.
-* Returns true if a valid PING packet is detected, false otherwise.
-* TODO: Implement using USB.cpp packet parsing once USB.cpp is available.
-*/
-bool pollCmdPing(){
-    const size_t kPacketSize = sizeof(packetHeader) + 2; // header + CRC, zero payload
-    if (Serial.available() < static_cast<int>(kPacketSize)) {
-        return false;
-    }
-
-    // Keep stream aligned to SYNC_BYTES before attempting decode.
-    while (Serial.available() >= 2) {
-        int b0 = Serial.peek();
-        if (b0 < 0) {
-            return false;
-        }
-
-        if (static_cast<uint8_t>(b0) == (SYNC_BYTES & 0xFF)) {
-            // Need one more byte to verify sync.
-            if (Serial.available() < 2) {
-                return false;
-            }
-
-            Serial.read();
-            int b1 = Serial.peek();
-            if (b1 < 0) {
-                return false;
-            }
-
-            if (static_cast<uint8_t>(b1) == ((SYNC_BYTES >> 8) & 0xFF)) {
-                // Put first sync byte back into the parsing path by reading second now.
-                Serial.read();
-                break;
-            }
-        }
-
-        // Drop one byte and continue searching for sync alignment.
-        Serial.read();
-    }
-
-    if (Serial.available() < static_cast<int>(sizeof(packetHeader) - 2 + 2)) {
-        return false;
-    }
-
-    const int typeByte = Serial.read();
-    const int payloadLen = Serial.read();
-    if (typeByte < 0 || payloadLen < 0) {
-        return false;
-    }
-
-    if (payloadLen != 0 || static_cast<uint8_t>(typeByte) != CMD_PING) {
-        // Drain any payload and CRC for this non-ping frame.
-        for (int i = 0; i < payloadLen + 2 && Serial.available() > 0; i++) {
-            Serial.read();
-        }
-        return false;
-    }
-
-    if (Serial.available() < 2) {
-        return false;
-    }
-
-    const int crcLo = Serial.read();
-    const int crcHi = Serial.read();
-    if (crcLo < 0 || crcHi < 0) {
-        return false;
-    }
-
-    uint16_t crc = 0x0000;
-    crc ^= static_cast<uint8_t>(typeByte);
-    for (uint8_t i = 0; i < 8; i++) {
-        crc = (crc & 1) ? ((crc >> 1) ^ 0xA001) : (crc >> 1);
-    }
-    crc ^= static_cast<uint8_t>(payloadLen);
-    for (uint8_t i = 0; i < 8; i++) {
-        crc = (crc & 1) ? ((crc >> 1) ^ 0xA001) : (crc >> 1);
-    }
-
-    const uint16_t receivedCrc = static_cast<uint16_t>(crcLo | (crcHi << 8));
-    return crc == receivedCrc;
-}
-
-/*
-* Sends a RESP_PONG (0x81) packet back to the host PC in response to CMD_PING.
-* Confirms to the host that the device is alive and ready to connect.
-* TODO: Implement using USB.cpp packet serialization once USB.cpp is available.
-*/
-void sendCmdPong(){
-    packet pong(RESP_PONG);
-    std::vector<uint8_t> bytes = pong.serialize();
-    Serial.write(bytes.data(), bytes.size());
-}
-
 /*
 * Verifies USB serial connection is open and host is actively connected.
 * Distinct from BOOTUP hardware checks — this confirms the communication
@@ -275,21 +179,15 @@ bool allConnectionsReady()
     return true;
 }
 
-//Checks whether simulation is already homed
-bool isHomed(){
-    //Placeholder for homing logic
-    return false;
-}
-
-//Initiates the homing proccess
-void startHoming(){
-//Placeholder for Homing logic
-
-}
-
-//Checks whether the homing proccess has been homed
-bool verifyHoming(){
-//Placeholder for Homing logic
+/*
+ * Check if a CMD_PING packet has been received.
+ * Returns true if ping was received since last check.
+ */
+bool pollCmdPing() {
+    if (pingReceived) {
+        pingReceived = false;
+        return true;
+    }
     return false;
 }
 
@@ -336,12 +234,7 @@ void enableI2CPacketSend()
         buildTelemJointPayload(data, i, j->angle, j->velocity);
     }
 
-    // all joints read successfully — build and send telemetry packet to host PC
-    packet I2CPacket(TELEM_JOINT_DATA, data);
-    // serialize converts packet object into raw byte stream for USB transmission
-    std::vector<uint8_t> I2CBuffer = I2CPacket.serialize();
-    // transmit byte stream to host PC over USB serial
-    Serial.write(I2CBuffer.data(), I2CBuffer.size());
+    sendTelemJointData(data);
 }
 
 /*
@@ -374,12 +267,7 @@ void enableODrivePacketSend()
     // status.armStatus = 
     // status.odriveFaults = 
 
-    // all ODrives healthy - build and sent status telemetry 
-    packet odrvPacket(TELEM_STATUS, status);
-    // serialize converts packet object into raw byte stream for USB transmission
-    std::vector<uint8_t> statusBuffer = odrvPacket.serialize();
-    // transmit byte stream to PC over USB serial
-    Serial.write(statusBuffer.data(), statusBuffer.size());
+    sendTelemStatus(status);
 }
 
 /*
@@ -541,10 +429,9 @@ void stateUpdate()
         break;
 
     // Wait for CMD_PING from host PC.
-    // PING received: send PONG, transition to CONNECTED.
+    // PING received: transition to CONNECTED. (Pong is sent in handlePing)
     case IDLE:
         if (pollCmdPing()) {
-            sendCmdPong();      // confirm device is alive to host
             currState = CONNECTED;
         }
         break;
