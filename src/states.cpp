@@ -45,6 +45,7 @@ bool verifyI2C(){
         return true;
     }
 }
+<<<<<<< HEAD
 /*
  * Verifies all buttons are in their default unpressed state during bootup.
  * Buttons are active-LOW (INPUT_PULLUP) — LOW means pressed, HIGH means unpressed.
@@ -69,6 +70,9 @@ bool verifyI2C(){
 //         return true;
 //      }
 // }
+=======
+
+>>>>>>> fda789a56b9a881a9c71ecbe545b192e6afa64e5
 /*
  * Verifies all LED pins are initialized and responding correctly.
  * Calls Led::setup() to configure all pins as OUTPUT, then writes HIGH
@@ -108,13 +112,81 @@ bool verifyLED(){
 * TODO: Implement using USB.cpp packet parsing once USB.cpp is available.
 */
 bool pollCmdPing(){
-    if (Serial.available() <= 0) {
+    const size_t kPacketSize = sizeof(packetHeader) + 2; // header + CRC, zero payload
+    if (Serial.available() < static_cast<int>(kPacketSize)) {
         return false;
     }
 
-    // Minimal ping check: host sends raw CMD_PING byte.
-    const int incoming = Serial.read();
-    return incoming == CMD_PING;
+    // Keep stream aligned to SYNC_BYTES before attempting decode.
+    while (Serial.available() >= 2) {
+        int b0 = Serial.peek();
+        if (b0 < 0) {
+            return false;
+        }
+
+        if (static_cast<uint8_t>(b0) == (SYNC_BYTES & 0xFF)) {
+            // Need one more byte to verify sync.
+            if (Serial.available() < 2) {
+                return false;
+            }
+
+            Serial.read();
+            int b1 = Serial.peek();
+            if (b1 < 0) {
+                return false;
+            }
+
+            if (static_cast<uint8_t>(b1) == ((SYNC_BYTES >> 8) & 0xFF)) {
+                // Put first sync byte back into the parsing path by reading second now.
+                Serial.read();
+                break;
+            }
+        }
+
+        // Drop one byte and continue searching for sync alignment.
+        Serial.read();
+    }
+
+    if (Serial.available() < static_cast<int>(sizeof(packetHeader) - 2 + 2)) {
+        return false;
+    }
+
+    const int typeByte = Serial.read();
+    const int payloadLen = Serial.read();
+    if (typeByte < 0 || payloadLen < 0) {
+        return false;
+    }
+
+    if (payloadLen != 0 || static_cast<uint8_t>(typeByte) != CMD_PING) {
+        // Drain any payload and CRC for this non-ping frame.
+        for (int i = 0; i < payloadLen + 2 && Serial.available() > 0; i++) {
+            Serial.read();
+        }
+        return false;
+    }
+
+    if (Serial.available() < 2) {
+        return false;
+    }
+
+    const int crcLo = Serial.read();
+    const int crcHi = Serial.read();
+    if (crcLo < 0 || crcHi < 0) {
+        return false;
+    }
+
+    uint16_t crc = 0x0000;
+    crc ^= static_cast<uint8_t>(typeByte);
+    for (uint8_t i = 0; i < 8; i++) {
+        crc = (crc & 1) ? ((crc >> 1) ^ 0xA001) : (crc >> 1);
+    }
+    crc ^= static_cast<uint8_t>(payloadLen);
+    for (uint8_t i = 0; i < 8; i++) {
+        crc = (crc & 1) ? ((crc >> 1) ^ 0xA001) : (crc >> 1);
+    }
+
+    const uint16_t receivedCrc = static_cast<uint16_t>(crcLo | (crcHi << 8));
+    return crc == receivedCrc;
 }
 
 /*
@@ -412,11 +484,14 @@ void sendErrMessage() {
         Serial.println("ERROR: I2C FAILURE");
         break;
 
+<<<<<<< HEAD
     // Button stuck or pressed during bootup
     // case BUTTON_ERROR:
     //     Serial.println("ERROR: BUTTON FAILURE");
     //     break;
 
+=======
+>>>>>>> fda789a56b9a881a9c71ecbe545b192e6afa64e5
     // LED pin not responding during bootup verification
     case LED_ERROR:
         Serial.println("ERROR: LED FAILURE");
