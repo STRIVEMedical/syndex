@@ -4,73 +4,273 @@
 #include <cmath>
 #include "USB.h"
 
-uint16_t float16ToUnsigned16(float value) {
-	if (std::isnan(value)) {
-		return 0x7E00;
-	}
+// Parser state machine
+enum ParseState {
+  WAIT_SYNC_1,
+  WAIT_SYNC_2,
+  READ_TYPE,
+  READ_SIZE,
+  READ_PAYLOAD,
+  READ_CRC_1,
+  READ_CRC_2
+};
 
-	union {
-		float f;
-		uint32_t u;
-	} in = {value};
+ParseState parseState = WAIT_SYNC_1;
 
-	uint32_t sign = (in.u >> 16) & 0x8000;
-	int32_t exp = ((in.u >> 23) & 0xFF) - 127 + 15;
-	uint32_t mantissa = in.u & 0x7FFFFF;
+// Packet currently being assembled
+packet currentPacket;
+uint8_t payloadIndex = 0;
+uint8_t crcLo = 0;
+uint8_t crcHi = 0;
 
-	if (exp <= 0) {
-		if (exp < -10) {
-			return static_cast<uint16_t>(sign);
-		}
-		mantissa |= 0x800000;
-		uint32_t shifted = mantissa >> (1 - exp + 13);
-		if ((mantissa >> (1 - exp + 12)) & 0x1) {
-			shifted++;
-		}
-		return static_cast<uint16_t>(sign | shifted);
-	}
+// Single completed packet buffer
+volatile bool packetAvailable = false;
+packet completedPacket;
 
-	if (exp >= 31) {
-		return static_cast<uint16_t>(sign | 0x7C00);
-	}
+// Flag for ping received
+volatile bool pingReceived = false;
 
-	uint16_t half = static_cast<uint16_t>(sign | (exp << 10) | (mantissa >> 13));
-	if (mantissa & 0x1000) {
-		half++;
-	}
-	return half;
+// Reset parser back to waiting for sync
+void resetParser() {
+  parseState = WAIT_SYNC_1;
+  currentPacket = packet();
+  payloadIndex = 0;
+  crcLo = 0;
+  crcHi = 0;
 }
 
-float unsigned16ToFloat16(uint16_t bits) {
-	uint32_t sign = (static_cast<uint32_t>(bits & 0x8000)) << 16;
-	uint32_t exp = (bits >> 10) & 0x1F;
-	uint32_t mantissa = bits & 0x3FF;
-	uint32_t out;
+// Parse one incoming byte
+void parseByte(uint8_t b) {
+  switch (parseState) {
+    case WAIT_SYNC_1:
+      // Because SYNC_BYTES = 0x7FFE and Teensy is little-endian,
+      // serialize() sends FE first, then 7F.
+      if (b == 0x7F) {
+        parseState = WAIT_SYNC_2;
+      }
+      break;
 
-	if (exp == 0) {
-		if (mantissa == 0) {
-			out = sign;
-		} else {
-			exp = 1;
-			while ((mantissa & 0x400) == 0) {
-				mantissa <<= 1;
-				exp--;
-			}
-			mantissa &= 0x3FF;
-			out = sign | ((exp + (127 - 15)) << 23) | (mantissa << 13);
-		}
-	} else if (exp == 31) {
-		out = sign | 0x7F800000 | (mantissa << 13);
-	} else {
-		out = sign | ((exp + (127 - 15)) << 23) | (mantissa << 13);
-	}
+    case WAIT_SYNC_2:
+      if (b == 0xFE) {
+        currentPacket = packet();
+        currentPacket.header.sync = SYNC_BYTES;
+        parseState = READ_TYPE;
+      } else if (b == 0x7F) {
+        // Stay ready in case this byte is start of a new sync
+        parseState = WAIT_SYNC_2;
+      } else {
+        resetParser();
+      }
+      break;
 
-	union {
-		uint32_t u;
-		float f;
-	} result = {out};
+    case READ_TYPE:
+      currentPacket.header.packetType = b;
+      parseState = READ_SIZE;
+      break;
 
-	return result.f;
+    case READ_SIZE:
+      currentPacket.header.payloadSize = b;
+
+      if (b > MAX_PAYLOAD_SIZE) {
+        resetParser();
+      } else if (b == 0) {
+        parseState = READ_CRC_1;
+      } else {
+        payloadIndex = 0;
+        parseState = READ_PAYLOAD;
+      }
+      break;
+
+    case READ_PAYLOAD:
+      currentPacket.payload[payloadIndex++] = b;
+
+      if (payloadIndex >= currentPacket.header.payloadSize) {
+        parseState = READ_CRC_1;
+      }
+      break;
+
+    case READ_CRC_1:
+      crcLo = b;
+      parseState = READ_CRC_2;
+      break;
+
+    case READ_CRC_2: {
+      crcHi = b;
+
+      uint16_t receivedCRC =
+          static_cast<uint16_t>(crcLo) |
+          (static_cast<uint16_t>(crcHi) << 8);
+      
+      uint16_t computedCRC = currentPacket.calculateCRC();
+      if (receivedCRC == computedCRC) {
+        currentPacket.checksum = receivedCRC;
+
+        // Overwrite any old packet if main loop hasn't consumed it yet
+        noInterrupts();
+        completedPacket = currentPacket;
+        packetAvailable = true;
+        interrupts();
+      }
+
+      resetParser();
+      break;
+    }
+  }
+}
+
+/*
+ * Poll Serial for incoming bytes and feed parser.
+ * Call this often from loop() or stateUpdate().
+ */
+void pollSerialPackets() {
+  while (Serial.available() > 0) {
+    int incoming = Serial.read();
+    if (incoming >= 0) {
+      parseByte(static_cast<uint8_t>(incoming));
+    }
+  }
+}
+
+/*
+ * Returns true if a full validated packet is available.
+ * Copies the packet into outPacket.
+ */
+bool getNextPacket(packet& outPacket) {
+  if (!packetAvailable) {
+    return false;
+  }
+
+  noInterrupts();
+  outPacket = completedPacket;
+  packetAvailable = false;
+  interrupts();
+
+  return true;
+}
+
+/*
+ * Send a packet over USB serial.
+ */
+void sendPacket(packet& pkt) {
+  std::vector<uint8_t> bytes = pkt.serialize();
+  Serial.write(bytes.data(), bytes.size());
+}
+
+/*
+ * Process any available incoming packets by dispatching to handlers.
+ */
+void processIncomingPackets() {
+  packet pkt;
+  while (getNextPacket(pkt)) {
+    switch (pkt.header.packetType) {
+      case CMD_PING:
+        handlePing();
+        break;
+      case CMD_RESET_DEVICE:
+        handleResetDevice();
+        break;
+      case CMD_SET_ODRIVE_STATE:
+        if (pkt.header.payloadSize == sizeof(setOdriveStatePayload)) {
+          setOdriveStatePayload payload;
+          memcpy(&payload, pkt.payload, sizeof(payload));
+          handleSetODriveState(payload);
+        }
+        break;
+      case CMD_SET_JOINT_TARGETS:
+        if (pkt.header.payloadSize == sizeof(setJointTargetsPayload)) {
+          setJointTargetsPayload payload;
+          memcpy(&payload, pkt.payload, sizeof(payload));
+          handleSetJointTargets(payload);
+        }
+        break;
+      case CMD_REQUEST_TELEM:
+        handleRequestTelem();
+        break;
+      case CMD_START_HOMING:
+        handleStartHoming();
+        break;
+      case CMD_SET_JOINT_PARAMETER:
+        if (pkt.header.payloadSize == sizeof(setJointParameterPayload)) {
+          setJointParameterPayload payload;
+          memcpy(&payload, pkt.payload, sizeof(payload));
+          handleSetJointParameter(payload);
+        }
+        break;
+      case CMD_ESTOP:
+        handleEStop();
+        break;
+      default:
+        // Unknown packet type, ignore or send NACK
+        sendCmdNack();
+        break;
+    }
+  }
+}
+
+/*
+ * Helper to send RESP_PONG packet.
+ */
+void sendCmdPong() {
+  packet pong(RESP_PONG);
+  sendPacket(pong);
+}
+
+/*
+ * Send RESP_ACK packet.
+ */
+void sendCmdAck() {
+  packet ack(RESP_ACK);
+  sendPacket(ack);
+}
+
+/*
+ * Send RESP_NACK packet.
+ */
+void sendCmdNack() {
+  packet nack(RESP_NACK);
+  sendPacket(nack);
+}
+
+/*
+ * Send TELEM_JOINT_DATA packet.
+ */
+void sendTelemJointData(const telemJointDataPayload& payload) {
+  packet pkt(TELEM_JOINT_DATA, payload);
+  sendPacket(pkt);
+}
+
+/*
+ * Send TELEM_STATUS packet.
+ */
+void sendTelemStatus(const telemStatusPayload& payload) {
+  packet pkt(TELEM_STATUS, payload);
+  sendPacket(pkt);
+}
+
+/*
+ * Send LOG_MESSAGE packet.
+ */
+void sendLogMessage(const char* message) {
+  packet pkt(LOG_MESSAGE);
+  size_t len = strlen(message);
+  if (len > MAX_PAYLOAD_SIZE) len = MAX_PAYLOAD_SIZE;
+  memcpy(pkt.payload, message, len);
+  pkt.header.payloadSize = len;
+  pkt.checksum = pkt.calculateCRC();
+  sendPacket(pkt);
+}
+
+/*
+ * Send ERROR_MESSAGE packet.
+ */
+void sendErrorMessage(const char* message) {
+  packet pkt(ERROR_MESSAGE);
+  size_t len = strlen(message);
+  if (len > MAX_PAYLOAD_SIZE) len = MAX_PAYLOAD_SIZE;
+  memcpy(pkt.payload, message, len);
+  pkt.header.payloadSize = len;
+  pkt.checksum = pkt.calculateCRC();
+  sendPacket(pkt);
 }
 
 void buildTelemJointPayload(telemJointDataPayload& payload, int jointID, float angleDeg, float velocityDegPerSec) {
@@ -94,15 +294,25 @@ packet::packet(uint8_t type) {
 }
 
 std::vector<uint8_t> packet::serialize() {
-	std::vector<uint8_t> buffer;
-	uint8_t* headerPtr = reinterpret_cast<uint8_t*>(&header);
-	buffer.insert(buffer.end(), headerPtr, headerPtr + sizeof(packetHeader));
-	buffer.insert(buffer.end(), payload, payload + header.payloadSize);
+	//Teensy will send little-endian
+    //Eg. For 0x7FFE
+    //Parser should expect 0xFE then 0x7F
+    std::vector<uint8_t> buffer;
+    checksum = calculateCRC();
 
-	checksum = calculateCRC();
-	buffer.push_back(checksum & 0xFF);
-	buffer.push_back((checksum >> 8) & 0xFF);
-	return buffer;
+    // sync in little-endian
+    buffer.push_back((header.sync >> 8) & 0xFF);
+    buffer.push_back(header.sync & 0xFF);
+
+    buffer.push_back(header.packetType);
+    buffer.push_back(header.payloadSize);
+
+    buffer.insert(buffer.end(), payload, payload + header.payloadSize);
+
+    buffer.push_back(checksum & 0xFF);
+    buffer.push_back((checksum >> 8) & 0xFF);
+
+    return buffer;
 }
 
 uint16_t packet::calculateCRC() {
@@ -125,4 +335,53 @@ uint16_t packet::updateCRC(uint16_t crc, uint8_t data) {
 		}
 	}
 	return crc;
+}
+
+// Handler implementations
+
+void handlePing() {
+  pingReceived = true;
+  sendCmdPong();
+}
+
+void handleResetDevice() {
+  // TODO: Implement device reset, perhaps restart Teensy or reset state
+  // For now, just send ACK
+  sendCmdAck();
+}
+
+void handleSetODriveState(const setOdriveStatePayload& payload) {
+  // TODO: Set ODrive state for joints specified by jointMask
+  // For now, send ACK
+  sendCmdAck();
+}
+
+void handleSetJointTargets(const setJointTargetsPayload& payload) {
+  // TODO: Set joint targets (velocity and torque)
+  // For now, send ACK
+  sendCmdAck();
+}
+
+void handleRequestTelem() {
+  // TODO: Send current telemetry data
+  // For now, send ACK
+  sendCmdAck();
+}
+
+void handleStartHoming() {
+  // TODO: Start homing procedure
+  // For now, send ACK
+  sendCmdAck();
+}
+
+void handleSetJointParameter(const setJointParameterPayload& payload) {
+  // TODO: Set joint parameter
+  // For now, send ACK
+  sendCmdAck();
+}
+
+void handleEStop() {
+  // TODO: Emergency stop
+  // For now, send ACK
+  sendCmdAck();
 }
