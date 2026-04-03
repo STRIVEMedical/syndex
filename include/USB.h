@@ -13,7 +13,7 @@
 
 //Packet Constants
 // Serialized as 0x7F 0xFE on little-endian MCUs to match host framing.
-const uint16_t SYNC_BYTES = 0xFE7F;
+const uint16_t SYNC_BYTES = 0x7FFE;
 const uint8_t MAX_PAYLOAD_SIZE = 255;
 
 //Packet Types
@@ -149,5 +149,6 @@ void buildTelemJointPayload(telemJointDataPayload& payload, int jointID, float a
 
 // External flag for ping received
 extern volatile bool pingReceived;
+
 
 #endif // USB_H

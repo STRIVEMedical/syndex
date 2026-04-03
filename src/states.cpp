@@ -103,18 +103,11 @@ bool verifyLED(){
 
 /*
 * Verifies USB serial connection is open and host is actively connected.
-* Distinct from BOOTUP hardware checks — this confirms the communication
-* link to the host PC is live at the moment of connection.
-* TODO: Implement once USB.cpp is available.
+* Returns true if a ping command has been received from the host,
+* indicating the host PC is actively communicating with the device.
 */
 bool verifyUSB(){
-    if (!Serial) {
-        setError(CONNECTION_ERROR);
-        return false;   // Host is not connected
-    }
-    else {
-        return true;    // Host is connected
-    }
+    return pingReceived;  // Check if ping was received from host
 }
 
 //Checks whether the ODrive comms are online

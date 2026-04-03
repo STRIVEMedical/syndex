@@ -16,6 +16,9 @@ typedef enum {
 //Current device state
 extern state_e currState;
 
+// Host connection flag: set to true when ping is received from host
+extern volatile bool pingReceived;
+
 void stateUpdate();
 
 //BootUp state functions

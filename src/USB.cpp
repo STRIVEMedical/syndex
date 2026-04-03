@@ -360,7 +360,7 @@ uint16_t packet::updateCRC(uint16_t crc, uint8_t data) {
 // Handler implementations
 
 void handlePing() {
-  pingReceived = true;
+  pingReceived = true;  // Mark that host has connected via ping
   sendCmdPong();
 }
 
