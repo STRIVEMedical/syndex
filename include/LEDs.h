@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "states.h"
 
 typedef enum {
     POWER,
@@ -36,3 +37,7 @@ void initLED(led_t* l);
 void ONToggleLED(led_t* l);
 
 void OFFToggleLED(led_t* l);
+
+#ifdef DEBUG_MODE
+void setDebugLEDs(state_e state);
+#endif
