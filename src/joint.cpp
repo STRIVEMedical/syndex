@@ -24,7 +24,7 @@ void initJoints() {
         joints[i].target_torque = 0.0f;
     }
 
-    Serial.println("Joints initialized with configured mapping");
+    SerialUSB1.println("Joints initialized with configured mapping");
 }
 
 // Get joint pointer by ID
@@ -58,8 +58,8 @@ void readJointAngles(){
                 joints[i].angle = computeAngle(i, raw);
                 joints[i].velocity = 0.0f;
             } else {
-            Serial.print("[WARN] AS5600 read failed on channel ");
-            Serial.println((int)joints[i].sensor_channel);
+            SerialUSB1.print("[WARN] AS5600 read failed on channel ");
+            SerialUSB1.println((int)joints[i].sensor_channel);
             joints[i].velocity = 0.0f;
             }
         }
@@ -70,52 +70,52 @@ void readJointAngles(){
 // Print joint status to serial with nice formatting
 void printJointStatus() {
     // Header
-    Serial.println();
-    Serial.println("======================================== JOINT STATUS ========================================");
-    Serial.println(" ID | Label         | Angle      | Sensor        | Velocity  | Homed | Torque");
-    Serial.println("----+---------------+------------+---------------+-----------+-------+----------");
+    SerialUSB1.println();
+    SerialUSB1.println("======================================== JOINT STATUS ========================================");
+    SerialUSB1.println(" ID | Label         | Angle      | Sensor        | Velocity  | Homed | Torque");
+    SerialUSB1.println("----+---------------+------------+---------------+-----------+-------+----------");
     
     // Joint data
     for (int i = 0; i < NUM_JOINTS; i++) {
         // Joint ID
-        Serial.print("  ");
-        Serial.print(i);
-        Serial.print(" | ");
+        SerialUSB1.print("  ");
+        SerialUSB1.print(i);
+        SerialUSB1.print(" | ");
         
         // Label (left-aligned, 13 chars)
         const char* label = (joints[i].label != nullptr) ? joints[i].label : "UNNAMED";
-        Serial.print(label);
-        for (int pad = 0; pad < (13 - strlen(label)); pad++) Serial.print(" ");
-        Serial.print(" | ");
+        SerialUSB1.print(label);
+        for (int pad = 0; pad < (13 - strlen(label)); pad++) SerialUSB1.print(" ");
+        SerialUSB1.print(" | ");
         
         // Angle (right-aligned, 10 chars with one decimal)
-        Serial.print("     ");
-        Serial.print(joints[i].angle, 1);
-        Serial.print("° | ");
+        SerialUSB1.print("     ");
+        SerialUSB1.print(joints[i].angle, 1);
+        SerialUSB1.print("° | ");
         
         // Sensor channel/type (left-aligned, 13 chars)
         if (joints[i].sensor_channel == INACTIVE_CHANNEL) {
-            Serial.print("ODrive      ");
+            SerialUSB1.print("ODrive      ");
         } else {
-            Serial.print("CH");
-            Serial.print(joints[i].sensor_channel);
-            for (int pad = 0; pad < (11 - (joints[i].sensor_channel >= 10 ? 2 : 1)); pad++) Serial.print(" ");
+            SerialUSB1.print("CH");
+            SerialUSB1.print(joints[i].sensor_channel);
+            for (int pad = 0; pad < (11 - (joints[i].sensor_channel >= 10 ? 2 : 1)); pad++) SerialUSB1.print(" ");
         }
-        Serial.print(" | ");
+        SerialUSB1.print(" | ");
         
         // Velocity (right-aligned, 9 chars)
-        Serial.print("   ");
-        Serial.print(joints[i].velocity, 2);
-        Serial.print(" | ");
+        SerialUSB1.print("   ");
+        SerialUSB1.print(joints[i].velocity, 2);
+        SerialUSB1.print(" | ");
         
         // Homed status
-        Serial.print(joints[i].is_homed ? "YES  " : "NO   ");
-        Serial.print("| ");
+        SerialUSB1.print(joints[i].is_homed ? "YES  " : "NO   ");
+        SerialUSB1.print("| ");
         
         // Torque
-        Serial.print(joints[i].target_torque, 2);
-        Serial.println(" Nm");
+        SerialUSB1.print(joints[i].target_torque, 2);
+        SerialUSB1.println(" Nm");
     }
-    Serial.println("==========================================================================================");
-    Serial.println();
+    SerialUSB1.println("==========================================================================================");
+    SerialUSB1.println();
 }

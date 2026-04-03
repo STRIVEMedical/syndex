@@ -68,7 +68,7 @@ void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data) {
       pumpEvents(can_intf);
     }
   }
-  Serial.println("Torque control enabled");
+  SerialUSB1.println("Torque control enabled");
 }
 
 
@@ -96,25 +96,25 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
   // Callbacks already pre-registered in preInitOdriveCallbacks() before CAN started
   
   // Wait for heartbeat to confirm ODrive is online
-  Serial.print("Waiting for ODrive Node ");
-  Serial.print(node_id);
-  Serial.println("...");
+  SerialUSB1.print("Waiting for ODrive Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.println("...");
   while (!data.received_heartbeat) {
     pumpEvents(can_intf);
   }
-  Serial.print("ODrive Node ");
-  Serial.print(node_id);
-  Serial.print(" Found! Axis State: 0x");
-  Serial.println(data.last_heartbeat.Axis_State, HEX);
+  SerialUSB1.print("ODrive Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.print(" Found! Axis State: 0x");
+  SerialUSB1.println(data.last_heartbeat.Axis_State, HEX);
   // Serial.println("Entering closed loop control...");
   // enable_closed_loop(odrv, data); 
   // Enable torque control mode (required for gravity compensation)
   // Serial.println("Enabling torque control and input passthrough...");
   // enable_torque_control(odrv, data);
 
-  Serial.print("ODrive Node ");
-  Serial.print(node_id);
-  Serial.println(" Running!");
+  SerialUSB1.print("ODrive Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.println(" Running!");
   return true;
 }
 
@@ -167,7 +167,7 @@ bool initMultiOdrives() {
   }
 
 
-  Serial.println("All ODrives Running!");
+  SerialUSB1.println("All ODrives Running!");
   return true;
 }
 
@@ -183,7 +183,7 @@ void emergencyStop() {
     odrive->setTorque(0.0);
   }
 
-  Serial.println("Emergency Stop!");
+  SerialUSB1.println("Emergency Stop!");
 }
 
 /**
@@ -200,106 +200,118 @@ void emergencyStop() {
  * 
  * @usage Call periodically to inspect ODrive state and configuration
  * @note Sends requests over CAN and prints responses
- */
-void dumpODriveConfig() {
-    DEBUG_SERIAL.println();
-    DEBUG_SERIAL.println("======================================== ODRIVE STATUS =========================================");
+//  */
+// void dumpODriveConfig() {
+//     Serial.println();
+//     Serial.println("======================================== ODRIVE STATUS =========================================");
     
-    // ODrive 0
-    DEBUG_SERIAL.println("\n\t=== ODrive Node 0 ===");
+//     // ODrive 0
+//     Serial.println("\n\t=== ODrive Node 0 ===");
     
-    Get_Bus_Voltage_Current_msg_t bus0;
-    if (odrv0.getBusVI(bus0, 100)) {
-        DEBUG_SERIAL.print("\tBus: ");
-        DEBUG_SERIAL.print(bus0.Bus_Voltage, 1);
-        DEBUG_SERIAL.print("V @ ");
-        DEBUG_SERIAL.print(bus0.Bus_Current, 2);
-        DEBUG_SERIAL.println("A");
-    }
+//     // Get_Error_msg_t err0;
+//     // if (odrv0.getError(err0, 100)) {
+//     //     Serial.print("\tError Code: 0x");
+//     //     Serial.println(err0.Error_Code, HEX);
+//     // }
     
-    Get_Temperature_msg_t temp0;
-    if (odrv0.getTemperature(temp0, 100)) {
-        DEBUG_SERIAL.print("\tTemp: ");
-        DEBUG_SERIAL.print(temp0.Temp, 1);
-        DEBUG_SERIAL.println("°C");
-    }
+//     Get_Bus_Voltage_Current_msg_t bus0;
+//     if (odrv0.getBusVI(bus0, 100)) {
+//         Serial.print("\tBus: ");
+//         Serial.print(bus0.Bus_Voltage, 1);
+//         Serial.print("V @ ");
+//         Serial.print(bus0.Bus_Current, 2);
+//         Serial.println("A");
+//     }
     
-    Get_Iq_msg_t iq0;
-    if (odrv0.getCurrents(iq0, 100)) {
-        DEBUG_SERIAL.print("\tMotor Current (Iq): ");
-        DEBUG_SERIAL.print(iq0.Iq_Setpoint, 2);
-        DEBUG_SERIAL.print("A (meas: ");
-        DEBUG_SERIAL.print(iq0.Iq_Measured, 2);
-        DEBUG_SERIAL.println("A)");
-    }
+//     Get_Temperature_msg_t temp0;
+//     if (odrv0.getTemperature(temp0, 100)) {
+//         Serial.print("\tTemp: ");
+//         Serial.print(temp0.Temp, 1);
+//         Serial.println("°C");
+//     }
     
-    Get_Encoder_Estimates_msg_t fb0;
-    if (odrv0.getFeedback(fb0, 100)) {
-        DEBUG_SERIAL.print("\tPosition: ");
-        DEBUG_SERIAL.print(fb0.Pos_Estimate, 3);
-        DEBUG_SERIAL.print(" turns, Velocity: ");
-        DEBUG_SERIAL.print(fb0.Vel_Estimate, 2);
-        DEBUG_SERIAL.println(" turns/s");
-    }
+//     Get_Iq_msg_t iq0;
+//     if (odrv0.getCurrents(iq0, 100)) {
+//         Serial.print("\tMotor Current (Iq): ");
+//         Serial.print(iq0.Iq_Setpoint, 2);
+//         Serial.print("A (meas: ");
+//         Serial.print(iq0.Iq_Measured, 2);
+//         Serial.println("A)");
+//     }
     
-    Get_Powers_msg_t pwr0;
-    if (odrv0.getPower(pwr0, 100)) {
-        DEBUG_SERIAL.print("\tPower: ");
-        DEBUG_SERIAL.print(pwr0.Mechanical_Power, 1);
-        DEBUG_SERIAL.print("W (elec: ");
-        DEBUG_SERIAL.print(pwr0.Electrical_Power, 1);
-        DEBUG_SERIAL.println("W)");
-    }
+//     Get_Encoder_Estimates_msg_t fb0;
+//     if (odrv0.getFeedback(fb0, 100)) {
+//         Serial.print("\tPosition: ");
+//         Serial.print(fb0.Pos_Estimate, 3);
+//         Serial.print(" turns, Velocity: ");
+//         Serial.print(fb0.Vel_Estimate, 2);
+//         Serial.println(" turns/s");
+//     }
     
-    // ODrive 1
-    DEBUG_SERIAL.println("\n\t=== ODrive Node 1 ===");
+//     Get_Powers_msg_t pwr0;
+//     if (odrv0.getPower(pwr0, 100)) {
+//         Serial.print("\tPower: ");
+//         Serial.print(pwr0.Mechanical_Power, 1);
+//         Serial.print("W (elec: ");
+//         Serial.print(pwr0.Electrical_Power, 1);
+//         Serial.println("W)");
+//     }
     
-    Get_Bus_Voltage_Current_msg_t bus1;
-    if (odrv1.getBusVI(bus1, 100)) {
-        DEBUG_SERIAL.print("\tBus: ");
-        DEBUG_SERIAL.print(bus1.Bus_Voltage, 1);
-        DEBUG_SERIAL.print("V @ ");
-        DEBUG_SERIAL.print(bus1.Bus_Current, 2);
-        DEBUG_SERIAL.println("A");
-    }
+//     // ODrive 1
+//     Serial.println("\n\t=== ODrive Node 1 ===");
     
-    Get_Temperature_msg_t temp1;
-    if (odrv1.getTemperature(temp1, 100)) {
-        DEBUG_SERIAL.print("\tTemp: ");
-        DEBUG_SERIAL.print(temp1.Temp, 1);
-        DEBUG_SERIAL.println("°C");
-    }
+//     Get_Error_msg_t err1;
+//     if (odrv1.getError(err1, 100)) {
+//         Serial.print("\tError Code: 0x");
+//         Serial.println(err1.Active_Errors, HEX);
+//     }
     
-    Get_Iq_msg_t iq1;
-    if (odrv1.getCurrents(iq1, 100)) {
-        DEBUG_SERIAL.print("\tMotor Current (Iq): ");
-        DEBUG_SERIAL.print(iq1.Iq_Setpoint, 2);
-        DEBUG_SERIAL.print("A (meas: ");
-        DEBUG_SERIAL.print(iq1.Iq_Measured, 2);
-        DEBUG_SERIAL.println("A)");
-    }
+//     Get_Bus_Voltage_Current_msg_t bus1;
+//     if (odrv1.getBusVI(bus1, 100)) {
+//         Serial.print("\tBus: ");
+//         Serial.print(bus1.Bus_Voltage, 1);
+//         Serial.print("V @ ");
+//         Serial.print(bus1.Bus_Current, 2);
+//         Serial.println("A");
+//     }
     
-    Get_Encoder_Estimates_msg_t fb1;
-    if (odrv1.getFeedback(fb1, 100)) {
-        DEBUG_SERIAL.print("\tPosition: ");
-        DEBUG_SERIAL.print(fb1.Pos_Estimate, 3);
-        DEBUG_SERIAL.print(" turns, Velocity: ");
-        DEBUG_SERIAL.print(fb1.Vel_Estimate, 2);
-        DEBUG_SERIAL.println(" turns/s");
-    }
+//     Get_Temperature_msg_t temp1;
+//     if (odrv1.getTemperature(temp1, 100)) {
+//         Serial.print("\tTemp: ");
+//         Serial.print(temp1.Temp, 1);
+//         Serial.println("°C");
+//     }
     
-    Get_Powers_msg_t pwr1;
-    if (odrv1.getPower(pwr1, 100)) {
-        DEBUG_SERIAL.print("\tPower: ");
-        DEBUG_SERIAL.print(pwr1.Mechanical_Power, 1);
-        DEBUG_SERIAL.print("W (elec: ");
-        DEBUG_SERIAL.print(pwr1.Electrical_Power, 1);
-        DEBUG_SERIAL.println("W)");
-    }
+//     Get_Iq_msg_t iq1;
+//     if (odrv1.getCurrents(iq1, 100)) {
+//         Serial.print("\tMotor Current (Iq): ");
+//         Serial.print(iq1.Iq_Setpoint, 2);
+//         Serial.print("A (meas: ");
+//         Serial.print(iq1.Iq_Measured, 2);
+//         Serial.println("A)");
+//     }
     
-    DEBUG_SERIAL.println("===========================================================================================");
-    DEBUG_SERIAL.println();
-}
+//     Get_Encoder_Estimates_msg_t fb1;
+//     if (odrv1.getFeedback(fb1, 100)) {
+//         Serial.print("\tPosition: ");
+//         Serial.print(fb1.Pos_Estimate, 3);
+//         Serial.print(" turns, Velocity: ");
+//         Serial.print(fb1.Vel_Estimate, 2);
+//         Serial.println(" turns/s");
+//     }
+    
+//     Get_Powers_msg_t pwr1;
+//     if (odrv1.getPower(pwr1, 100)) {
+//         Serial.print("\tPower: ");
+//         Serial.print(pwr1.Mechanical_Power, 1);
+//         Serial.print("W (elec: ");
+//         Serial.print(pwr1.Electrical_Power, 1);
+//         Serial.println("W)");
+//     }
+    
+//     Serial.println("===========================================================================================");
+//     Serial.println();
+// }
 /**
  * @brief Performs homing sequence using AS5600 absolute encoders
  * 

@@ -46,7 +46,6 @@ bool verifyI2C(){
         return true;
     }
 }
-<<<<<<< HEAD
 /*
  * Verifies all buttons are in their default unpressed state during bootup.
  * Buttons are active-LOW (INPUT_PULLUP) — LOW means pressed, HIGH means unpressed.
@@ -71,9 +70,6 @@ bool verifyI2C(){
 //         return true;
 //      }
 // }
-=======
-
->>>>>>> fda789a56b9a881a9c71ecbe545b192e6afa64e5
 /*
  * Verifies all LED pins are initialized and responding correctly.
  * Calls Led::setup() to configure all pins as OUTPUT, then writes HIGH
@@ -477,30 +473,27 @@ void sendErrMessage() {
     {
     // ODrive hardware or CAN communication failure
     case ODRIVE_ERROR:
-        Serial.println("ERROR: ODRIVE FAILURE");
+        SerialUSB1.println("ERROR: ODRIVE FAILURE");
         break;
     
     // I2C bus or encoder communication failure
     case I2C_ERROR:
-        Serial.println("ERROR: I2C FAILURE");
+        SerialUSB1.println("ERROR: I2C FAILURE");
         break;
 
-<<<<<<< HEAD
     // Button stuck or pressed during bootup
     // case BUTTON_ERROR:
-    //     Serial.println("ERROR: BUTTON FAILURE");
+    //     SerialUSB1.println("ERROR: BUTTON FAILURE");
     //     break;
 
-=======
->>>>>>> fda789a56b9a881a9c71ecbe545b192e6afa64e5
     // LED pin not responding during bootup verification
     case LED_ERROR:
-        Serial.println("ERROR: LED FAILURE");
+        SerialUSB1.println("ERROR: LED FAILURE");
         break;
 
     // USB or host PC connection failure
     case CONNECTION_ERROR:
-        Serial.println("ERROR: CONNECTION FAILURE");
+        SerialUSB1.println("ERROR: CONNECTION FAILURE");
         break;
 
     // No error currently active — nothing to report
@@ -509,7 +502,7 @@ void sendErrMessage() {
 
     // Unknown or unhandled error type
     default:
-    Serial.println("ERROR: UNKNOWN FAILURE");
+    SerialUSB1.println("ERROR: UNKNOWN FAILURE");
         break;
     }
 }
@@ -635,7 +628,8 @@ void stateUpdate()
         sendErrMessage();
         break;
     }
-}
+
 #ifdef DEBUG_MODE
-setDebugLEDs(currState);
+  setDebugLEDs(currState);
 #endif
+}

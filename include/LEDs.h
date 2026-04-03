@@ -38,6 +38,4 @@ void ONToggleLED(led_t* l);
 
 void OFFToggleLED(led_t* l);
 
-#ifdef DEBUG_MODE
-void setDebugLEDs(state_e state);
-#endif
+// LEDS_H

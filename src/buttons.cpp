@@ -23,8 +23,8 @@ void Buttons::setup() {
 void buttonDetect(button_t* b)                     
 {
   if (digitalRead(b->pin) == LOW) {
-    Serial.print("\nPin button pressed: ");
-    Serial.print(b->pin);
+    SerialUSB1.print("\nPin button pressed: ");
+    SerialUSB1.print(b->pin);
   }
   delay(100);
 }

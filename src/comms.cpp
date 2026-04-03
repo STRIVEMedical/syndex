@@ -22,14 +22,14 @@ bool initCommunications() {
 
   //init CAN
   if (!setupCan()) {
-    Serial.println("CAN init failed");
+    SerialUSB1.println("CAN init failed");
     return false;
   }
 
   // Initialize I2C sensors (AS5600 absolute encoders via TCA9548A mux)
   setupI2C();
 
-  Serial.println("CAN & I2C READY");
+  SerialUSB1.println("CAN & I2C READY");
   return true;
 }
 
