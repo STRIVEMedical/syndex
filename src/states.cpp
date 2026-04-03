@@ -7,6 +7,7 @@
 #include "Wire.h"
 #include "joint.h"
 #include "errors.h"
+#include "DEBUG.h"
 
 state_e currState = BOOTUP;
 errorCode_e currError = NO_ERROR;
@@ -500,8 +501,10 @@ void stateUpdate()
     // Failure: transition to ERROR_STATE.
     case BOOTUP:
         if (verifyODrive() && verifyI2C() && verifyLED()) {
+#ifndef DEBUG_MODE
             ONToggleLED(&Led::powerLed);   // power LED on = system alive
             OFFToggleLED(&Led::errorLed);  // ensure error LED is off
+#endif
             currState = IDLE;
         }
         else {
@@ -549,11 +552,13 @@ void stateUpdate()
     // data LED turns on once on entry via static flag.
     case READY:
     {
+#ifndef DEBUG_MODE
         static bool enteredReady = false;
         if (!enteredReady) {
         ONToggleLED(&Led::dataLed); // data LED on = system operational
         enteredReady = true;
         }
+#endif
         enableI2CPacketSend();
         enableODrivePacketSend();
         break;
@@ -563,7 +568,9 @@ void stateUpdate()
     // Motors idled gracefully before power is cut.
     case POWERINGOFF:
         stopODrives();      // gracefully idle all ODrive motors
+#ifndef DEBUG_MODE
         powerOffPeripherals();  // turn off all LEDs
+#endif
         endPower();             // cut system power
         break;
 
@@ -572,7 +579,9 @@ void stateUpdate()
     case ERROR_STATE:
         stopODrives();          // emergency stop all motors
         endPower();             // cut power
+#ifndef DEBUG_MODE
         turnOnErrorLED();       // alert operator visually
+#endif
         sendErrMessage();       // report specific fault over Serial
         // Wait for operator acknowledgement before attempting recovery
         if (digitalRead(buttonPins::powerButton.pin) == LOW) {
@@ -585,8 +594,13 @@ void stateUpdate()
     default:
         stopODrives();
         endPower();
+#ifndef DEBUG_MODE
         turnOnErrorLED();
+#endif
         sendErrMessage();
         break;
     }
 }
+#ifdef DEBUG_MODE
+setDebugLEDs(currState);
+#endif
