@@ -4,6 +4,26 @@
 #include <cmath>
 #include "USB.h"
 
+// 16-bit Float Conversion Functions
+// Converts 32-bit float to 16-bit float representation for compact transmission
+uint16_t float16ToUnsigned16(float value) {
+  // Simple conversion: pack mantissa and exponent into 16 bits
+  // This is a placeholder implementation - adjust scale/precision as needed
+  if (value == 0.0f) return 0;
+  
+  // Scale float to fit in 16-bit unsigned (0-65535 range)
+  // Adjust scale factor (1000.0f) based on your expected value range
+  uint16_t result = (uint16_t)((value + 180.0f) * 181.84f);  // Map -180 to 180 degrees to 0-65535
+  return result;
+}
+
+// Converts 16-bit float representation back to 32-bit float
+float unsigned16ToFloat16(uint16_t bits) {
+  // Reverse of float16ToUnsigned16
+  float result = (float)bits / 181.84f - 180.0f;  // Map 0-65535 back to -180 to 180 degrees
+  return result;
+}
+
 // Parser state machine
 enum ParseState {
   WAIT_SYNC_1,

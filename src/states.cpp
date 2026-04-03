@@ -352,6 +352,32 @@ bool errorCheck(){
 }
 
 /*
+ * Check if the arm has been homed (home position established).
+ * TODO: Implement proper homing verification based on joint state.
+ */
+bool isHomed() {
+    return true;  // Stub: return true for now
+}
+
+/*
+ * Command the arm to move to the home position.
+ * Sends homing command to all joints once via static flag.
+ * TODO: Implement proper homing sequence.
+ */
+void startHoming() {
+    // Stub: placeholder for homing command logic
+}
+
+/*
+ * Poll the homing process to check if complete.
+ * Returns true when homing is finished, false while still homing.
+ * TODO: Implement proper homing completion detection.
+ */
+bool verifyHoming() {
+    return true;  // Stub: return true for now (homing instant)
+}
+
+/*
  * Transmits a specific error message over Serial based on the current error code.
  * Called in ERROR_STATE to report the fault to the operator or host PC.
  * Each error type has a distinct message for easy fault diagnosis.

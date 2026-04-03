@@ -11,37 +11,6 @@
 
 #include "comms.h"
 
-//16-bit Float Conversion Functions (For Kinematics Payloads)
-uint16_t float16ToUnsigned16(float value);
-float unsigned16ToFloat16(uint16_t bits);
-
-bool getNextPacket(packet& pkt); // Non-blocking check for next complete packet from USB serial. Returns true if a packet was available and parsed, false if no complete packet is ready yet.
-void sendPacket(const packet& pkt); // Send a packet over USB serial.
-void pollSerialPackets(); // Poll Serial for incoming bytes and feed parser. Call this often from loop() or stateUpdate().
-void processIncomingPackets(); // Process any available incoming packets by dispatching to handlers.
-
-// Helper functions to send specific packets
-void sendCmdPong(); // Helper to send RESP_PONG packet.
-void sendCmdAck(); // Send RESP_ACK
-void sendCmdNack(); // Send RESP_NACK
-void sendTelemJointData(const telemJointDataPayload& payload); // Send joint telemetry
-void sendTelemStatus(const telemStatusPayload& payload); // Send status telemetry
-void sendLogMessage(const char* message); // Send log message
-void sendErrorMessage(const char* message); // Send error message
-
-// Handler functions for incoming packets (internal use)
-void handlePing();
-void handleResetDevice();
-void handleSetODriveState(const setOdriveStatePayload& payload);
-void handleSetJointTargets(const setJointTargetsPayload& payload);
-void handleRequestTelem();
-void handleStartHoming();
-void handleSetJointParameter(const setJointParameterPayload& payload);
-void handleEStop();
-
-// External flag for ping received
-extern volatile bool pingReceived;
-
 //Packet Constants
 // Serialized as 0x7F 0xFE on little-endian MCUs to match host framing.
 const uint16_t SYNC_BYTES = 0xFE7F;
@@ -113,9 +82,6 @@ struct telemJointDataPayload {
   jointData joints[7];
 };
 
-// Loads one joint's telemetry values into the payload entry.
-void buildTelemJointPayload(telemJointDataPayload& payload, int jointID, float angleDeg, float velocityDegPerSec);
-
 //Packet Definitions
 class packet {
 public:
@@ -148,5 +114,40 @@ public:
 private:
   uint16_t updateCRC(uint16_t crc, uint8_t data);
 };
+
+//16-bit Float Conversion Functions (For Kinematics Payloads)
+uint16_t float16ToUnsigned16(float value);
+float unsigned16ToFloat16(uint16_t bits);
+
+// USB packet I/O functions
+bool getNextPacket(packet& pkt); // Non-blocking check for next complete packet from USB serial. Returns true if a packet was available and parsed, false if no complete packet is ready yet.
+void sendPacket(const packet& pkt); // Send a packet over USB serial.
+void pollSerialPackets(); // Poll Serial for incoming bytes and feed parser. Call this often from loop() or stateUpdate().
+void processIncomingPackets(); // Process any available incoming packets by dispatching to handlers.
+
+// Helper functions to send specific packets
+void sendCmdPong(); // Helper to send RESP_PONG packet.
+void sendCmdAck(); // Send RESP_ACK
+void sendCmdNack(); // Send RESP_NACK
+void sendTelemJointData(const telemJointDataPayload& payload); // Send joint telemetry
+void sendTelemStatus(const telemStatusPayload& payload); // Send status telemetry
+void sendLogMessage(const char* message); // Send log message
+void sendErrorMessage(const char* message); // Send error message
+
+// Handler functions for incoming packets (internal use)
+void handlePing();
+void handleResetDevice();
+void handleSetODriveState(const setOdriveStatePayload& payload);
+void handleSetJointTargets(const setJointTargetsPayload& payload);
+void handleRequestTelem();
+void handleStartHoming();
+void handleSetJointParameter(const setJointParameterPayload& payload);
+void handleEStop();
+
+// Loads one joint's telemetry values into the payload entry.
+void buildTelemJointPayload(telemJointDataPayload& payload, int jointID, float angleDeg, float velocityDegPerSec);
+
+// External flag for ping received
+extern volatile bool pingReceived;
 
 #endif // USB_H
