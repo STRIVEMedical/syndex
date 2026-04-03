@@ -321,8 +321,8 @@ std::vector<uint8_t> packet::serialize() {
     checksum = calculateCRC();
 
     // sync in little-endian
-    buffer.push_back((header.sync >> 8) & 0xFF);
-    buffer.push_back(header.sync & 0xFF);
+    buffer.push_back(0x7F);
+    buffer.push_back(0xFE);
 
     buffer.push_back(header.packetType);
     buffer.push_back(header.payloadSize);
