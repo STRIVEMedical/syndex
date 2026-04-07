@@ -27,21 +27,20 @@ static const char* stateName(state_e state) {
 }
 
 void setup() {
-  Serial.begin(115200);
-  SerialUSB1.begin(115200);
-  while (!SerialUSB1) { ; }  // wait for USB to fully enumerate
-  delay(500);
-  
-  // Joint map/state must exist before READY telemetry path runs.
-  initJoints();
+    // Initialize BOTH USB ports first, before anything else
+    Serial.begin(115200);
+    SerialUSB1.begin(115200);
 
-  // Pre-register ODrive callbacks before CAN starts (prevents "missing callback" error)
-  preInitOdriveCallbacks();
+    // Give USB stack time to fully enumerate BOTH ports
+    // 2000ms is conservative but reliable for dual serial
+    delay(2000);
 
-  SerialUSB1.printf("USB Serial: %u\n", teensyUsbSN());
-  SerialUSB1.println("State-machine test harness started");
-  SerialUSB1.println("Debug output on SerialUSB1 (PuTTY)");
-  SerialUSB1.println("Main comms on Serial (Unity - COM13)");
+    // NOW it's safe to init joints, CAN, etc.
+    initJoints();
+    preInitOdriveCallbacks();
+
+    SerialUSB1.printf("USB Serial: %u\n", teensyUsbSN());
+    SerialUSB1.println("Startup complete");
 }
 
 

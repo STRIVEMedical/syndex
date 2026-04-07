@@ -16,21 +16,14 @@
  * @warning System will halt if initialization fails
  */
 bool initCommunications() {
-  //Set baude rate for serial monitor
-  Serial.begin(115200);
-  delay(200);
-
-  //init CAN
-  if (!setupCan()) {
-    SerialUSB1.println("CAN init failed");
-    return false;
-  }
-
-  // Initialize I2C sensors (AS5600 absolute encoders via TCA9548A mux)
-  setupI2C();
-
-  SerialUSB1.println("CAN & I2C READY");
-  return true;
+    // Serial already initialized in setup() — skip it here
+    if (!setupCan()) {
+        SerialUSB1.println("CAN init failed");
+        return false;
+    }
+    setupI2C();
+    SerialUSB1.println("CAN & I2C READY");
+    return true;
 }
 
 
