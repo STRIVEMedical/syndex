@@ -120,8 +120,6 @@ uint16_t float16ToUnsigned16(float value);
 float unsigned16ToFloat16(uint16_t bits);
 
 // USB packet I/O functions
-bool getNextPacket(packet& pkt); // Non-blocking check for next complete packet from USB serial. Returns true if a packet was available and parsed, false if no complete packet is ready yet.
-void sendPacket(const packet& pkt); // Send a packet over USB serial.
 void pollSerialPackets(); // Poll Serial for incoming bytes and feed parser. Call this often from loop() or stateUpdate().
 void processIncomingPackets(); // Process any available incoming packets by dispatching to handlers.
 
@@ -134,21 +132,13 @@ void sendTelemStatus(const telemStatusPayload& payload); // Send status telemetr
 void sendLogMessage(const char* message); // Send log message
 void sendErrorMessage(const char* message); // Send error message
 
-// Handler functions for incoming packets (internal use)
-void handlePing();
-void handleResetDevice();
-void handleSetODriveState(const setOdriveStatePayload& payload);
-void handleSetJointTargets(const setJointTargetsPayload& payload);
-void handleRequestTelem();
-void handleStartHoming();
-void handleSetJointParameter(const setJointParameterPayload& payload);
-void handleEStop();
-
 // Loads one joint's telemetry values into the payload entry.
 void buildTelemJointPayload(telemJointDataPayload& payload, int jointID, float angleDeg, float velocityDegPerSec);
 
 // External flag for ping received
 extern volatile bool pingReceived;
+// One-shot flag set on each CMD_PING and consumed by state machine transition logic.
+extern volatile bool pingEventPending;
 
 
 #endif // USB_H

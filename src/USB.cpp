@@ -4,6 +4,20 @@
 #include <cmath>
 #include "USB.h"
 
+// File-local helpers used only inside the USB module.
+static bool getNextPacket(packet& outPacket);
+// static void sendPacket(packet& pkt);
+static void sendPacket(const packet& pkt);
+
+static void handlePing();
+static void handleResetDevice();
+static void handleSetODriveState(const setOdriveStatePayload& payload);
+static void handleSetJointTargets(const setJointTargetsPayload& payload);
+static void handleRequestTelem();
+static void handleStartHoming();
+static void handleSetJointParameter(const setJointParameterPayload& payload);
+static void handleEStop();
+
 // 16-bit Float Conversion Functions
 // Converts 32-bit float to 16-bit float representation for compact transmission
 uint16_t float16ToUnsigned16(float value) {
@@ -49,6 +63,7 @@ packet completedPacket;
 
 // Flag for ping received
 volatile bool pingReceived = false;
+volatile bool pingEventPending = false;
 
 // Reset parser back to waiting for sync
 void resetParser() {
@@ -155,7 +170,7 @@ void pollSerialPackets() {
  * Returns true if a full validated packet is available.
  * Copies the packet into outPacket.
  */
-bool getNextPacket(packet& outPacket) {
+static bool getNextPacket(packet& outPacket) {
   if (!packetAvailable) {
     return false;
   }
@@ -171,8 +186,12 @@ bool getNextPacket(packet& outPacket) {
 /*
  * Send a packet over USB serial.
  */
-void sendPacket(packet& pkt) {
-  std::vector<uint8_t> bytes = pkt.serialize();
+// static void sendPacket(packet& pkt) {
+//   std::vector<uint8_t> bytes = pkt.serialize();
+static void sendPacket(const packet& pkt) {
+  // serialize() updates checksum, so work on a local copy to keep input const.
+  packet pktCopy = pkt;
+  std::vector<uint8_t> bytes = pktCopy.serialize();
   Serial.write(bytes.data(), bytes.size());
 }
 
@@ -359,48 +378,49 @@ uint16_t packet::updateCRC(uint16_t crc, uint8_t data) {
 
 // Handler implementations
 
-void handlePing() {
+static void handlePing() {
   pingReceived = true;  // Mark that host has connected via ping
+  pingEventPending = true;
   sendCmdPong();
 }
 
-void handleResetDevice() {
+static void handleResetDevice() {
   // TODO: Implement device reset, perhaps restart Teensy or reset state
   // For now, just send ACK
   sendCmdAck();
 }
 
-void handleSetODriveState(const setOdriveStatePayload& payload) {
+static void handleSetODriveState(const setOdriveStatePayload& payload) {
   // TODO: Set ODrive state for joints specified by jointMask
   // For now, send ACK
   sendCmdAck();
 }
 
-void handleSetJointTargets(const setJointTargetsPayload& payload) {
+static void handleSetJointTargets(const setJointTargetsPayload& payload) {
   // TODO: Set joint targets (velocity and torque)
   // For now, send ACK
   sendCmdAck();
 }
 
-void handleRequestTelem() {
+static void handleRequestTelem() {
   // TODO: Send current telemetry data
   // For now, send ACK
   sendCmdAck();
 }
 
-void handleStartHoming() {
+static void handleStartHoming() {
   // TODO: Start homing procedure
   // For now, send ACK
   sendCmdAck();
 }
 
-void handleSetJointParameter(const setJointParameterPayload& payload) {
+static void handleSetJointParameter(const setJointParameterPayload& payload) {
   // TODO: Set joint parameter
   // For now, send ACK
   sendCmdAck();
 }
 
-void handleEStop() {
+static void handleEStop() {
   // TODO: Emergency stop
   // For now, send ACK
   sendCmdAck();

@@ -24,17 +24,14 @@ void stateUpdate();
 //BootUp state functions
 bool verifyODrive();
 bool verifyI2C();
-// bool verifyButton();
 bool verifyLED();
 
 //Idle state functions
 bool pollCmdPing();
-void sendCmdPong();
 
 //Connected state functions
 bool verifyUSB();
 bool verifyODriveComms();
-bool verifyConnectedI2CDevices();
 bool allConnectionsReady();
 bool isHomed();
 
@@ -54,7 +51,7 @@ void powerOffPeripherals();
 
 //Error state functions
 bool errorCheck();
-void sendErrMessage();
+void sendStateErrorLog();
 void endPower();
 void stopODrives();
 void turnOnErrorLED();

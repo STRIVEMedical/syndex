@@ -20,6 +20,7 @@ errorCode_e currError = NO_ERROR;
  */
 bool verifyODrive(){
      if (!initCommunications()) {
+        SerialUSB1.println("inside verify Odrive");
         setError(CONNECTION_ERROR); // CAN or I2C layer failed
         return false;
     }
@@ -30,10 +31,9 @@ bool verifyODrive(){
     return true;
 }
 /*
- * Verifies I2C bus is initialized by checking if the TCA9548A multiplexer
- * responds on the bus. The mux is the gateway to all 7 AS5600 encoders —
- * if the mux is unreachable, no encoder data can be read.
- * Returns true if mux acknowledges, false if bus is down or mux not found.
+ * Verifies I2C setup and external encoder presence.
+ * Checks mux ACK and ensures the expected number of active external encoder
+ * channels return valid AS5600 readings.
  */
 bool verifyI2C(){
     Wire.beginTransmission(TCA_ADDR);
@@ -42,9 +42,39 @@ bool verifyI2C(){
         setError(I2C_ERROR);
         return false;
     }
-    else {
-        return true;
+
+    uint8_t expectedExternalEncoders = 0;
+    uint8_t detectedExternalEncoders = 0;
+
+    for (uint8_t i = 0; i < NUM_JOINTS; i++) {
+        Joint* j = getJoint(i);
+        if (j == nullptr) {
+            setError(I2C_ERROR);
+            return false;
+        }
+
+        if (j->use_onboard_encoder || j->sensor_channel == INACTIVE_CHANNEL) {
+            continue;
+        }
+
+        expectedExternalEncoders++;
+
+        tcaSelect(j->sensor_channel);
+        uint16_t raw = readRawAS5600();
+        if (raw == 0xFFFF) {
+            setError(I2C_ERROR);
+            return false;
+        }
+
+        detectedExternalEncoders++;
     }
+
+    if (detectedExternalEncoders != expectedExternalEncoders) {
+        setError(I2C_ERROR);
+        return false;
+    }
+
+    return true;
 }
 /*
  * Verifies all buttons are in their default unpressed state during bootup.
@@ -123,29 +153,6 @@ bool verifyODriveComms(){
     }
 }
 
-
-bool verifyConnectedI2CDevices() {
-    for (uint8_t i = 0; i < NUM_JOINTS; i++) {
-        Joint* j = getJoint(i);
-        if (j == nullptr) {
-            setError(I2C_ERROR);
-            return false;
-        }
-
-        if (j->use_onboard_encoder || j->sensor_channel == INACTIVE_CHANNEL) {
-            continue;
-        }
-
-        tcaSelect(j->sensor_channel);
-        uint16_t raw = readRawAS5600();
-        if (raw == 0xFFFF) {
-            setError(I2C_ERROR);
-            return false;
-        }
-    }
-    return true;
-}
-
 /*
  * Convenience wrapper that checks all three connection layers are healthy.
  * Checks in order: USB → ODrive CAN → I2C encoders
@@ -156,6 +163,7 @@ bool allConnectionsReady()
 {
     // Check USB connection to host PC
     if (!verifyUSB()) {
+        SerialUSB1.println("inside verify USB");
         setError(CONNECTION_ERROR);
         return false;
     }
@@ -165,7 +173,7 @@ bool allConnectionsReady()
         return false;
     }
     // Checks all 7 I2C encoders
-    if (!verifyConnectedI2CDevices()) {
+    if (!verifyI2C()) {
         setError(I2C_ERROR);
         return false;
     }
@@ -177,8 +185,8 @@ bool allConnectionsReady()
  * Returns true if ping was received since last check.
  */
 bool pollCmdPing() {
-    if (pingReceived) {
-        pingReceived = false;
+    if (pingEventPending) {
+        pingEventPending = false;
         return true;
     }
     return false;
@@ -205,9 +213,11 @@ void enableI2CPacketSend()
         // check if joint ID is valid
         if (j == nullptr) {
             setError(I2C_ERROR);
-            packet errPacket(ERROR_MESSAGE);
-            std::vector<uint8_t> bytes = errPacket.serialize();
-            Serial.write(bytes.data(), bytes.size());
+            // packet errPacket(ERROR_MESSAGE);
+            // std::vector<uint8_t> bytes = errPacket.serialize();
+            // Serial.write(bytes.data(), bytes.size());
+            sendErrorMessage("I2C error: invalid joint pointer");
+
             currState = ERROR_STATE;
             return; // exit immediately — invalid joint
         }
@@ -216,9 +226,10 @@ void enableI2CPacketSend()
         if (!j->use_onboard_encoder && j->rawValue == 0xFFFF) {
             setError(I2C_ERROR);
             // notify host PC that an encoder failure occurred
-            packet errPacket(ERROR_MESSAGE);
-            std::vector<uint8_t> errBuffer = errPacket.serialize();
-            Serial.write(errBuffer.data(), errBuffer.size());
+            // packet errPacket(ERROR_MESSAGE);
+            // std::vector<uint8_t> errBuffer = errPacket.serialize();
+            // Serial.write(errBuffer.data(), errBuffer.size());
+            sendErrorMessage("I2C error: external encoder read failed");
             // safe the system and exit function immediately
             currState = ERROR_STATE;
             return;
@@ -314,7 +325,7 @@ void errorRecovery(){
 /*
  * Stores the current error code when a fault is detected.
  * Called immediately before transitioning to ERROR_STATE so
- * sendErrMessage() can report the specific cause of the fault.
+ * sendStateErrorLog() can report the specific cause of the fault.
  */
 void setError(errorCode_e err) {
     currError = err;
@@ -375,7 +386,7 @@ bool verifyHoming() {
  * Called in ERROR_STATE to report the fault to the operator or host PC.
  * Each error type has a distinct message for easy fault diagnosis.
  */
-void sendErrMessage() {
+void sendStateErrorLog() {
     switch (currError)
     {
     // ODrive hardware or CAN communication failure
@@ -516,7 +527,7 @@ void stateUpdate()
 #ifndef DEBUG_MODE
         turnOnErrorLED();       // alert operator visually
 #endif
-        sendErrMessage();       // report specific fault over Serial
+        sendStateErrorLog();       // report specific fault over Serial
         // Wait for operator acknowledgement before attempting recovery
         if (digitalRead(buttonPins::powerButton.pin) == LOW) {
                 errorRecovery();    // clear error and restart from BOOTUP
@@ -531,7 +542,7 @@ void stateUpdate()
 #ifndef DEBUG_MODE
         turnOnErrorLED();
 #endif
-        sendErrMessage();
+        sendStateErrorLog();
         break;
     }
 
