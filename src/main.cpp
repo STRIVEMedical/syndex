@@ -45,13 +45,17 @@ void setup() {
 
 
 void loop() {
+
+    // Auto-reboot hook — must be near the top of loop()
+    if (Serial.baud() == 134) {
+        _reboot_Teensyduino_();
+    }
   // Keep CAN traffic serviced continuously (heartbeats/status/callbacks).
-  pumpEvents(can_intf);
 
-  // Poll for incoming USB packets and process them
-  pollSerialPackets();
-  processIncomingPackets();
-
+    pumpEvents(can_intf);
+      // Poll for incoming USB packets and process them
+    pollSerialPackets();
+    processIncomingPackets();
   state_e prevState = currState;
   // stateUpdate();
 
