@@ -27,12 +27,10 @@ static const char* stateName(state_e state) {
 }
 
 void setup() {
-  // Main serial for Unity
   Serial.begin(115200);
-  
-  // Debug serial for PuTTY (separate USB COM port via USB_DUAL_SERIAL)
   SerialUSB1.begin(115200);
-  delay(200);
+  while (!SerialUSB1) { ; }  // wait for USB to fully enumerate
+  delay(500);
   
   // Joint map/state must exist before READY telemetry path runs.
   initJoints();
