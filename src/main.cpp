@@ -10,6 +10,9 @@
 
 #include "USB.h"
 
+static unsigned long lastPrint = 0;
+
+
 static const char* stateName(state_e state) {
   switch (state) {
     case BOOTUP: return "BOOTUP";
@@ -65,11 +68,12 @@ void loop() {
 
   // DEBUG: Print encoder readings every 500ms for testing
   // static unsigned long lastPrint = 0;
-  // if (millis() - lastPrint > 500) {
-  //   lastPrint = millis();
-  //   readJointAngles();      // Update all joint angle/velocity values
-  //   printJointStatus();     // Print all joints in easy-to-read format
-  // }
+  if (millis() - lastPrint > 500) {
+    lastPrint = millis();
+    // readJointAngles();      // Update all joint angle/velocity values
+    // printJointStatus();     // Print all joints in easy-to-read format
+    printOdrvIQcurrents();
+  }
 
   // DEBUG: Dump ODrive config every 3 seconds for testing
   // static unsigned long lastConfigDump = 0;

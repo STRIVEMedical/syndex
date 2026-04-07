@@ -337,3 +337,13 @@ void emergencyStop() {
 //   // 3. Apply torques via setTorque()
 // }
 
+void printOdrvIQcurrents() {
+    // for each odrive, get IQ measurement
+    Get_Iq_msg_t msg = Get_Iq_msg_t();
+    uint16_t request_timeout_ms = 10;
+    for (auto odrive : odrives) {
+      odrive->getCurrents(msg, request_timeout_ms);
+      Serial.printf("ODrive IQ current setpoint: %f\n", msg.Iq_Setpoint);
+      Serial.printf("ODrive measured IQ current: %f\n", msg.Iq_Measured);
+    }
+}
