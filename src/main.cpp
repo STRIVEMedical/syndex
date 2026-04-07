@@ -53,15 +53,15 @@ void loop() {
   processIncomingPackets();
 
   state_e prevState = currState;
-  stateUpdate();
+  // stateUpdate();
 
   // Log state transitions to debug serial (PuTTY)
-  if (currState != prevState) {
-    SerialUSB1.print("STATE: ");
-    SerialUSB1.print(stateName(prevState));
-    SerialUSB1.print(" -> ");
-    SerialUSB1.println(stateName(currState));
-  }
+  // if (currState != prevState) {
+  //   SerialUSB1.print("STATE: ");
+  //   SerialUSB1.print(stateName(prevState));
+  //   SerialUSB1.print(" -> ");
+  //   SerialUSB1.println(stateName(currState));
+  // }
 
   // DEBUG: Print encoder readings every 500ms for testing
   // static unsigned long lastPrint = 0;

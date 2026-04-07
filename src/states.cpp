@@ -7,10 +7,13 @@
 #include "Wire.h"
 #include "joint.h"
 #include "errors.h"
-#include "DEBUG.h"
 
 state_e currState = BOOTUP;
 errorCode_e currError = NO_ERROR;
+
+// Telemetry pacing to avoid saturating the USB receive queue on host.
+static const uint32_t JOINT_TELEM_INTERVAL_MS = 5; 
+static const uint32_t STATUS_TELEM_INTERVAL_MS = 100; // 10 Hz
 
 /*
  * Verifies ODrive system is initialized and all ODrives are online.
@@ -76,30 +79,7 @@ bool verifyI2C(){
 
     return true;
 }
-/*
- * Verifies all buttons are in their default unpressed state during bootup.
- * Buttons are active-LOW (INPUT_PULLUP) — LOW means pressed, HIGH means unpressed.
- * A button held down during startup is unexpected and could indicate:
- *   - Accidental press
- *   - Stuck button
- *   - Wiring short
- * Returns true if all buttons are unpressed, false if any button is held down.
- */
-// bool verifyButton(){
-//     // Ensure GPIO state used by boot checks is initialized.
-//     Buttons::setup();
 
-//     if (digitalRead(buttonPins::powerButton.pin) == LOW ||
-//         digitalRead(buttonPins::autoHoming.pin) == LOW ||
-//         digitalRead(buttonPins::triggerButton.pin) == LOW ||
-//         digitalRead(buttonPins::toolSelect.pin) == LOW) {
-//         setError(BUTTON_ERROR);
-//         return false;
-//      }
-//      else {
-//         return true;
-//      }
-// }
 /*
  * Verifies all LED pins are initialized and responding correctly.
  * Calls Led::setup() to configure all pins as OUTPUT, then writes HIGH
@@ -163,7 +143,6 @@ bool allConnectionsReady()
 {
     // Check USB connection to host PC
     if (!verifyUSB()) {
-        SerialUSB1.println("inside verify USB");
         setError(CONNECTION_ERROR);
         return false;
     }
@@ -213,9 +192,6 @@ void enableI2CPacketSend()
         // check if joint ID is valid
         if (j == nullptr) {
             setError(I2C_ERROR);
-            // packet errPacket(ERROR_MESSAGE);
-            // std::vector<uint8_t> bytes = errPacket.serialize();
-            // Serial.write(bytes.data(), bytes.size());
             sendErrorMessage("I2C error: invalid joint pointer");
 
             currState = ERROR_STATE;
@@ -226,9 +202,6 @@ void enableI2CPacketSend()
         if (!j->use_onboard_encoder && j->rawValue == 0xFFFF) {
             setError(I2C_ERROR);
             // notify host PC that an encoder failure occurred
-            // packet errPacket(ERROR_MESSAGE);
-            // std::vector<uint8_t> errBuffer = errPacket.serialize();
-            // Serial.write(errBuffer.data(), errBuffer.size());
             sendErrorMessage("I2C error: external encoder read failed");
             // safe the system and exit function immediately
             currState = ERROR_STATE;
@@ -237,7 +210,6 @@ void enableI2CPacketSend()
 
         buildTelemJointPayload(data, i, j->angle, j->velocity);
     }
-
     sendTelemJointData(data);
 }
 
@@ -294,13 +266,6 @@ void powerOffPeripherals(){
     OFFToggleLED(&Led::errorLed);
 }
 
-/*
- * Cuts system power after ODrives have been stopped and hardware is safe.
- * Always called after stopODrives()
-*/
-void endPower(){
-
-}
 
 /*
 * Turns on the error LED to visually alert the operator of a fault.
@@ -399,11 +364,6 @@ void sendStateErrorLog() {
         SerialUSB1.println("ERROR: I2C FAILURE");
         break;
 
-    // Button stuck or pressed during bootup
-    // case BUTTON_ERROR:
-    //     SerialUSB1.println("ERROR: BUTTON FAILURE");
-    //     break;
-
     // LED pin not responding during bootup verification
     case LED_ERROR:
         SerialUSB1.println("ERROR: LED FAILURE");
@@ -447,10 +407,8 @@ void stateUpdate()
     // Failure: transition to ERROR_STATE.
     case BOOTUP:
         if (verifyODrive() && verifyI2C() && verifyLED()) {
-#ifndef DEBUG_MODE
             ONToggleLED(&Led::powerLed);   // power LED on = system alive
             OFFToggleLED(&Led::errorLed);  // ensure error LED is off
-#endif
             currState = IDLE;
         }
         else {
@@ -497,15 +455,33 @@ void stateUpdate()
     // data LED turns on once on entry via static flag.
     case READY:
     {
-#ifndef DEBUG_MODE
+        static bool readyTelemInit = false;
+        static uint32_t lastJointTelemMs = 0;
+        static uint32_t lastStatusTelemMs = 0;
+
         static bool enteredReady = false;
         if (!enteredReady) {
         ONToggleLED(&Led::dataLed); // data LED on = system operational
         enteredReady = true;
         }
-#endif
-        enableI2CPacketSend();
-        enableODrivePacketSend();
+
+        if (!readyTelemInit) {
+            uint32_t now = millis();
+            lastJointTelemMs = now;
+            lastStatusTelemMs = now;
+            readyTelemInit = true;
+        }
+
+        uint32_t now = millis();
+        if ((now - lastJointTelemMs) >= JOINT_TELEM_INTERVAL_MS) {
+            enableI2CPacketSend();
+            lastJointTelemMs = now;
+        }
+
+        if ((now - lastStatusTelemMs) >= STATUS_TELEM_INTERVAL_MS) {
+            enableODrivePacketSend();
+            lastStatusTelemMs = now;
+        }
         break;
     }
 
@@ -513,20 +489,14 @@ void stateUpdate()
     // Motors idled gracefully before power is cut.
     case POWERINGOFF:
         stopODrives();      // gracefully idle all ODrive motors
-#ifndef DEBUG_MODE
         powerOffPeripherals();  // turn off all LEDs
-#endif
-        endPower();             // cut system power
         break;
 
     // Safe all hardware immediately and report fault.
     // Waits for operator to press powerButton before recovery.
     case ERROR_STATE:
         stopODrives();          // emergency stop all motors
-        endPower();             // cut power
-#ifndef DEBUG_MODE
         turnOnErrorLED();       // alert operator visually
-#endif
         sendStateErrorLog();       // report specific fault over Serial
         // Wait for operator acknowledgement before attempting recovery
         if (digitalRead(buttonPins::powerButton.pin) == LOW) {
@@ -538,15 +508,8 @@ void stateUpdate()
     // Immediately safe all hardware and transition to ERROR_STATE.
     default:
         stopODrives();
-        endPower();
-#ifndef DEBUG_MODE
         turnOnErrorLED();
-#endif
         sendStateErrorLog();
         break;
     }
-
-#ifdef DEBUG_MODE
-  setDebugLEDs(currState);
-#endif
 }

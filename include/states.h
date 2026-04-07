@@ -52,7 +52,6 @@ void powerOffPeripherals();
 //Error state functions
 bool errorCheck();
 void sendStateErrorLog();
-void endPower();
 void stopODrives();
 void turnOnErrorLED();
 void errorRecovery();
