@@ -10,7 +10,7 @@
 
 #include "USB.h"
 
-static unsigned long lastPrint = 0;
+static unsigned long lastIqPrintMs = 0;
 
 
 static const char* stateName(state_e state) {
@@ -47,16 +47,16 @@ void setup() {
 void loop() {
 
     // Auto-reboot hook — must be near the top of loop()
-    if (Serial.baud() == 134) {
-        _reboot_Teensyduino_();
-    }
+    // if (Serial.baud() == 134) {
+    //     _reboot_Teensyduino_();
+    // }
   // Keep CAN traffic serviced continuously (heartbeats/status/callbacks).
 
-    pumpEvents(can_intf);
-      // Poll for incoming USB packets and process them
-    pollSerialPackets();
-    processIncomingPackets();
-  state_e prevState = currState;
+  pumpEvents(can_intf);
+    // Poll for incoming USB packets and process them
+  pollSerialPackets();
+  processIncomingPackets();
+  // state_e prevState = currState;
   // stateUpdate();
 
   // Log state transitions to debug serial (PuTTY)
@@ -69,11 +69,16 @@ void loop() {
 
   // DEBUG: Print encoder readings every 500ms for testing
   // static unsigned long lastPrint = 0;
-  if (millis() - lastPrint > 500) {
-    lastPrint = millis();
-    // readJointAngles();      // Update all joint angle/velocity values
-    // printJointStatus();     // Print all joints in easy-to-read format
-    printOdrvIQcurrents();
+
+  // DEBUG: Print IQ current snapshots for all three ODrives every 1 second.
+  if (millis() - lastIqPrintMs >= 1000) {
+    lastIqPrintMs = millis();
+    SerialUSB1.println("[IQ] ODrive 0");
+    printOdriveCurrent(odrv0_user_data);
+    SerialUSB1.println("[IQ] ODrive 1");
+    printOdriveCurrent(odrv1_user_data);
+    SerialUSB1.println("[IQ] ODrive 2");
+    printOdriveCurrent(odrv2_user_data);
   }
 
   // DEBUG: Dump ODrive config every 3 seconds for testing

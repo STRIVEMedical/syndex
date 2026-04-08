@@ -176,6 +176,12 @@ void onFeedback(Get_Encoder_Estimates_msg_t& msg, void* user_data) {
   ud->received_feedback = true;
 }
 
+void onCurrents(Get_Iq_msg_t& msg, void* user_data) {
+    ODriveUserData* ud = (ODriveUserData*)user_data;
+    ud->last_iq_msg = msg;
+    ud->received_iq_current = true;
+}
+
 /**
  * @brief Routes incoming CAN messages to all registered ODrive instances
  * 

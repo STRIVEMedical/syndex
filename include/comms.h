@@ -41,6 +41,7 @@ bool setupCan();
 void onCanMessage(const CAN_message_t& msg);
 void onHeartbeat(Heartbeat_msg_t& msg, void* user_data);
 void onFeedback(Get_Encoder_Estimates_msg_t& msg, void* user_data);
+void onCurrents(Get_Iq_msg_t& msg, void* user_data);
 
 // System-level communication init
 bool initCommunications();

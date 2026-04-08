@@ -133,12 +133,16 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
 void preInitOdriveCallbacks() {
   odrv0.onStatus(onHeartbeat, &odrv0_user_data);
   odrv0.onFeedback(onFeedback, &odrv0_user_data);
+  odrv0.onCurrents(onCurrents, &odrv0_user_data);
   
   odrv1.onStatus(onHeartbeat, &odrv1_user_data);
   odrv1.onFeedback(onFeedback, &odrv1_user_data);
+  odrv1.onCurrents(onCurrents, &odrv1_user_data);
 
   odrv2.onStatus(onHeartbeat, &odrv2_user_data);
   odrv2.onFeedback(onFeedback, &odrv2_user_data);
+  odrv2.onCurrents(onCurrents, &odrv2_user_data);
+
 }
 
 /* =========================
@@ -337,13 +341,16 @@ void emergencyStop() {
 //   // 3. Apply torques via setTorque()
 // }
 
-void printOdrvIQcurrents() {
-    // for each odrive, get IQ measurement
-    Get_Iq_msg_t msg = Get_Iq_msg_t();
-    uint16_t request_timeout_ms = 10;
-    for (auto odrive : odrives) {
-      odrive->getCurrents(msg, request_timeout_ms);
-      Serial.printf("ODrive IQ current setpoint: %f\n", msg.Iq_Setpoint);
-      Serial.printf("ODrive measured IQ current: %f\n", msg.Iq_Measured);
-    }
+
+void printOdriveCurrent(ODriveUserData &data){
+
+  if (!data.received_iq_current) {
+    SerialUSB1.println("[IQ] No current sample received yet");
+    return;
+  }
+
+  SerialUSB1.printf(
+      "[IQ] setpoint=%.3f A measured=%.3f A\n",
+      data.last_iq_msg.Iq_Setpoint,
+      data.last_iq_msg.Iq_Measured);
 }

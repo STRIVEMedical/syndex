@@ -22,6 +22,8 @@ struct ODriveUserData {
   //to set INPUT_MODE_PASSTHROUGH
   Set_Controller_Mode_msg_t last_input_mode;
   bool received_last_input_mode = false;
+  Get_Iq_msg_t last_iq_msg;
+  bool received_iq_current = false;
 };
 
 
@@ -86,7 +88,7 @@ void setOdriveTorque(ODriveCAN &odrv, ODriveUserData &data, float torque);
 
 void stopOdrive(ODriveCAN &odrv, ODriveUserData &data);
 
-void printOdrvIQcurrents();
+void printOdriveCurrent(ODriveUserData &data);
 
 
 #endif // ODRIVE_H
