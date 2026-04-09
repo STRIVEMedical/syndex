@@ -6,6 +6,7 @@
 #include "USB.h"
 #include "Wire.h"
 #include "joint.h"
+#include "admittance_controller.h"
 #include "errors.h"
 
 state_e currState = BOOTUP;
@@ -168,8 +169,11 @@ bool pollCmdPing() {
 }
 
 /*
- * Reads all joint encoder channels via TCA9548A multiplexer and
- * streams joint angle data to host PC as a TELEM_JOINT_DATA packet.
+ * Streams the latest joint angle/velocity snapshot to host PC as
+ * a TELEM_JOINT_DATA packet.
+ *
+ * Sensing is performed once per READY cycle before control, so this
+ * function only validates and serializes the already-updated joint state.
  * If any encoder fails during reading, sends ERROR_MESSAGE to host
  * and transitions to ERROR_STATE immediately.
  * Called every loop cycle in READY state.
@@ -178,9 +182,6 @@ void enableI2CPacketSend()
 {
 // payload struct to hold angle and velocity data for all joints
     telemJointDataPayload data;
-
-    // read all joint angles and velocities into Joint structs
-    readJointAngles();
 
     for (int i = 0; i < NUM_JOINTS; i++) {
         Joint* j = getJoint(i);
@@ -453,13 +454,17 @@ void stateUpdate()
     {
         // FOR SENSING
         static bool readyTelemInit = false;
+        static bool enteredReady = false;
         static uint32_t lastJointTelemMs = 0;
         static uint32_t lastStatusTelemMs = 0;
+        static uint32_t lastAdmittanceUs = 0;
 
-        static bool enteredReady = false;
         if (!enteredReady) {
-        ONToggleLED(&Led::dataLed); // data LED on = system operational
-        enteredReady = true;
+            ONToggleLED(&Led::dataLed); // data LED on = system operational
+            // Reset integrated admittance state when entering READY to avoid step jumps.
+            resetAdmittanceController();
+            lastAdmittanceUs = micros();
+            enteredReady = true;
         }
 
         if (!readyTelemInit) {
@@ -468,6 +473,13 @@ void stateUpdate()
             lastStatusTelemMs = now;
             readyTelemInit = true;
         }
+
+        // Sense first, then run admittance update in the same READY cycle.
+        readJointAngles();
+        uint32_t nowUs = micros();
+        float dt = (nowUs - lastAdmittanceUs) * 1e-6f;
+        lastAdmittanceUs = nowUs;
+        stepAdmittanceController(dt);
 
         uint32_t now = millis();
         if ((now - lastJointTelemMs) >= JOINT_TELEM_INTERVAL_MS) {

@@ -6,6 +6,7 @@
 #include "joint.h"
 #include "main.h"
 #include "states.h"
+#include "admittance_controller.h"
 #include <TeensyID.h>
 
 #include "USB.h"
@@ -38,7 +39,8 @@ void setup() {
     // NOW it's safe to init joints, CAN, etc.
     initJoints();
     preInitOdriveCallbacks();
-
+    // Initialize admittance model parameters once at boot.
+    initAdmittanceController();
     if (!initCommunications()) {
       SerialUSB1.println("Communication init failed");
       while (true) {
