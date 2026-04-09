@@ -2,6 +2,9 @@
 #include "odrive.h"
 #include "ODriveFlexCAN.hpp"
 
+// Guard against accidental re-initialization from multiple startup paths.
+static bool commsInitialized = false;
+
 
 /**
  * @brief Initializes all communication subsystems for the surgical arm
@@ -16,12 +19,17 @@
  * @warning System will halt if initialization fails
  */
 bool initCommunications() {
+  if (commsInitialized) {
+    return true;
+  }
+
     // Serial already initialized in setup() — skip it here
     if (!setupCan()) {
         SerialUSB1.println("CAN init failed");
         return false;
     }
     setupI2C();
+  commsInitialized = true;
     SerialUSB1.println("CAN & I2C READY");
     return true;
 }

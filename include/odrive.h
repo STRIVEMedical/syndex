@@ -65,8 +65,11 @@ bool initMultiOdrives();
 /*
 Helper to transition an ODrive into closed-loop control.
 */
-void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data);
+void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id);
 
+void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id);
+
+void enable_velocity_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id);
 /**
  * @brief Emergency stop function for all ODrives
  * 
@@ -75,20 +78,7 @@ void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data);
  */
 void emergencyStop();
 
-/**
- * @brief Dumps all ODrive configuration and status values
- * 
- * @usage Call to inspect ODrive hardware status, errors, and power
- * @note Sends requests over CAN and prints responses to Serial
- */
-void dumpODriveConfig();
 
-
-void setOdriveTorque(ODriveCAN &odrv, ODriveUserData &data, float torque);
-
-void stopOdrive(ODriveCAN &odrv, ODriveUserData &data);
-
-void printOdriveCurrent(ODriveCAN* od, ODriveUserData &data);
-
+void printOdriveCurrent(ODriveCAN* odrv, ODriveUserData &data, uint8_t node_id);
 
 #endif // ODRIVE_H

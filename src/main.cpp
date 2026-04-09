@@ -68,39 +68,33 @@ void loop() {
   // Poll for incoming USB packets and process them
   pollSerialPackets();
   processIncomingPackets();
-  // state_e prevState = currState;
-  // stateUpdate();
+  state_e prevState = currState;
+  stateUpdate();
 
   // Log state transitions to debug serial (PuTTY)
-  // if (currState != prevState) {
-  //   SerialUSB1.print("STATE: ");
-  //   SerialUSB1.print(stateName(prevState));
-  //   SerialUSB1.print(" -> ");
-  //   SerialUSB1.println(stateName(currState));
-  // }
-
-  // DEBUG: Poll and print ODrive current once per second.
-  if (millis() - lastIqPrintMs >= 1000) {
-    lastIqPrintMs = millis();
-    Get_Iq_msg_t iq_msg;
-    if (odrv2.getCurrents(iq_msg, 20)) {
-      odrv2_user_data.last_iq_msg = iq_msg;
-      odrv2_user_data.received_iq_current = true;
-      SerialUSB1.print("[IQ] ODrive 2 setpoint: ");
-      SerialUSB1.print(iq_msg.Iq_Setpoint, 3);
-      SerialUSB1.println(" A");
-      SerialUSB1.print("[IQ] ODrive 2 measured: ");
-      SerialUSB1.print(iq_msg.Iq_Measured, 3);
-      SerialUSB1.println(" A");
-    } else {
-      SerialUSB1.println("[IQ] ODrive 2: getCurrents timeout");
-    }
+  if (currState != prevState) {
+    SerialUSB1.print("STATE: ");
+    SerialUSB1.print(stateName(prevState));
+    SerialUSB1.print(" -> ");
+    SerialUSB1.println(stateName(currState));
   }
 
-  // DEBUG: Dump ODrive config every 3 seconds for testing
-  // static unsigned long lastConfigDump = 0;
-  // if (millis() - lastConfigDump > 3000) {
-  //   lastConfigDump = millis();
-  //   dumpODriveConfig();     // Print ODrive hardware status and config
+  // DEBUG: Poll and print ODrive current once per second.
+  // if (millis() - lastIqPrintMs >= 1000) {
+  //   lastIqPrintMs = millis();
+  //   Get_Iq_msg_t iq_msg;
+  //   if (odrv2.getCurrents(iq_msg, 20)) {
+  //     odrv2_user_data.last_iq_msg = iq_msg;
+  //     odrv2_user_data.received_iq_current = true;
+  //     SerialUSB1.print("[IQ] ODrive 2 setpoint: ");
+  //     SerialUSB1.print(iq_msg.Iq_Setpoint, 3);
+  //     SerialUSB1.println(" A");
+  //     SerialUSB1.print("[IQ] ODrive 2 measured: ");
+  //     SerialUSB1.print(iq_msg.Iq_Measured, 3);
+  //     SerialUSB1.println(" A");
+  //   } else {
+  //     SerialUSB1.println("[IQ] ODrive 2: getCurrents timeout");
+  //   }
   // }
+
 }

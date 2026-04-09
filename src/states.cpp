@@ -17,18 +17,13 @@ static const uint32_t STATUS_TELEM_INTERVAL_MS = 100; // 10 Hz
 
 /*
  * Verifies ODrive system is initialized and all ODrives are online.
- * Step 1: Initialize CAN and I2C communication layer via initOdriveSystem()
- * Step 2: Initialize all ODrive instances and wait for heartbeats via initMultiOdrives()
- * Returns true if all ODrives are online, false if any layer fails.
+ * Initializes all ODrive instances and waits for heartbeats via initMultiOdrives().
+ * Communication buses are initialized once during startup in setup().
+ * Returns true if all ODrives are online, false otherwise.
  */
 bool verifyODrive(){
-     if (!initCommunications()) {
-        SerialUSB1.println("inside verify Odrive");
-        setError(CONNECTION_ERROR); // CAN or I2C layer failed
-        return false;
-    }
     if (!initMultiOdrives()) {
-        setError(ODRIVE_ERROR); // CAN fine but ODrive not responding
+        setError(ODRIVE_ERROR);
         return false;
     }
     return true;

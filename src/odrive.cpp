@@ -22,18 +22,16 @@
  * @warning This sets position control - not suitable for gravity compensation
  * @note Repeatedly sends state command until ODrive confirms mode change
  */
-void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data) {
-  while (data.last_heartbeat.Axis_State !=
-         ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL) {
-    odrv.clearErrors();
-    delay(1);
-    odrv.setState(ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL);
+void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
+  odrv.setState(ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL);
 
-    for (int i = 0; i < 15; i++) {
-      delay(10);
-      pumpEvents(can_intf);
-    }
-  }
+  for (int i = 0; i < 15; i++) {
+    delay(10);
+    pumpEvents(can_intf);
+}
+  SerialUSB1.println("Closed loop control enabled for Odrive ");
+  SerialUSB1.print(node_id);
+
 }
 
 /**
@@ -49,26 +47,32 @@ void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data) {
  *   - Gravity counter-torque application
  * @warning ODrive must be pre-configured via USB for torque control compatibility
  */
-void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data) {
-  // Wait until ODrive confirms torque control and passthrough input mode
-  // while ((data.last_controller_mode.Control_Mode != 
-  //       ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL) || 
-  //       (data.last_input_mode.Input_Mode != 
-  //       ODriveInputMode::INPUT_MODE_PASSTHROUGH)) {
-    
-  //   odrv.clearErrors(); 
-  //   delay(1);
-    
+void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {    
   // Set control mode to torque control and Set input mode to passthrough (direct torque commands)
-  odrv.setControllerMode(ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL, ODriveInputMode::INPUT_MODE_PASSTHROUGH);
-    
+  odrv.setControllerMode(
+  ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL, 
+  ODriveInputMode::INPUT_MODE_PASSTHROUGH);
+  // Process CAN messages to update status
+  for (int i = 0; i < 15; i++) {
+    delay(10);
+    pumpEvents(can_intf);
+  }
+  SerialUSB1.println("Torque control enabled for Odrive ");
+  SerialUSB1.print(node_id);
+}
+
+void enable_velocity_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
+  // Set control mode to torque control and Set input mode to passthrough (direct torque commands)
+  odrv.setControllerMode(
+  ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL, 
+  ODriveInputMode::INPUT_MODE_PASSTHROUGH);
     // Process CAN messages to update status
   for (int i = 0; i < 15; i++) {
     delay(10);
     pumpEvents(can_intf);
   }
-  
-  SerialUSB1.println("Torque control enabled");
+  SerialUSB1.println("Velocity control enabled for Odrive ");
+  SerialUSB1.print(node_id);
 }
 
 
@@ -107,10 +111,10 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
   SerialUSB1.print(" Found! Axis State: 0x");
   SerialUSB1.println(data.last_heartbeat.Axis_State, HEX);
   SerialUSB1.println("Entering closed loop control...");
-  enable_closed_loop(odrv, data); 
-  // Enable torque control mode (required for gravity compensation)
-  SerialUSB1.println("Enabling torque control and input passthrough...");
-  enable_torque_control(odrv, data);
+  enable_closed_loop(odrv, data, node_id); 
+  // Enable velocity control mode (required for gravity compensation)
+  SerialUSB1.println("Enabling velocity control and input passthrough...");
+  enable_velocity_control(odrv, data, node_id);
   SerialUSB1.print("ODrive Node ");
   SerialUSB1.print(node_id);
   SerialUSB1.println(" Running!");
@@ -185,7 +189,6 @@ void emergencyStop() {
     odrive->setState(ODriveAxisState::AXIS_STATE_IDLE);
     odrive->setTorque(0.0);
   }
-
   SerialUSB1.println("Emergency Stop!");
 }
 
@@ -197,37 +200,28 @@ void emergencyStop() {
  */
 // void performHoming() {
 //   // 1. Read all AS5600 encoders
-//   // 2. Check if within safe startup range
+//   // 2. Check if within safe startup** **range
 //   // 3. If not, gently move to safe position
 //   // 4. Set zero offsets if needed
 // }
 
-/**
- * @brief Updates gravity compensation torques based on current arm pose
- * 
- * @usage Called in main control loop (20-100Hz)
- * @note Uses URDF-based calculations or empirical torque mapping
- */
-// void updateGravityCompensation() {
-//   // 1. Read all joint angles from AS5600 encoders
-//   // 2. Calculate required torques for base joints
-//   // 3. Apply torques via setTorque()
-// }
 
+void printOdriveCurrent(ODriveCAN* odrv, ODriveUserData &data, uint8_t node_id) {
+  if (odrv == nullptr) return;
 
-void printOdriveCurrent(ODriveCAN* od, ODriveUserData &data) {
-  if (od == nullptr) {
-    SerialUSB1.println("[IQ] null ODrive pointer");
-    return;
+  Get_Iq_msg_t iq_msg;
+  if (odrv->getCurrents(iq_msg, 20)) {
+    data.last_iq_msg = iq_msg;
+    data.received_iq_current = true;
+    // SerialUSB1.print(iq_msg.Iq_Setpoint, 3);
+    SerialUSB1.print("[IQ] ODrive ");
+    SerialUSB1.print(node_id);
+    SerialUSB1.print("measured: ");
+    SerialUSB1.print(iq_msg.Iq_Measured, 3);
+    SerialUSB1.println(" A");
+  } else {
+    SerialUSB1.print("[IQ] ODrive ");
+    SerialUSB1.print(node_id);
+    SerialUSB1.println(" getCurrents timeout");
   }
-
-  if (!data.received_iq_current) {
-    SerialUSB1.println("[IQ] No current sample received yet");
-    return;
-  }
-
-  SerialUSB1.printf(
-      "[IQ] setpoint=%.3f A measured=%.3f A\n",
-      data.last_iq_msg.Iq_Setpoint,
-      data.last_iq_msg.Iq_Measured);
 }
