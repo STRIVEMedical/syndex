@@ -179,6 +179,15 @@ void onFeedback(Get_Encoder_Estimates_msg_t& msg, void* user_data) {
 void onCurrents(Get_Iq_msg_t& msg, void* user_data) {
     ODriveUserData* ud = (ODriveUserData*)user_data;
     ud->last_iq_msg = msg;
+    if (!ud->received_iq_current) {
+      if (ud == &odrv0_user_data) {
+        SerialUSB1.println("[IQ RX] ODrive 0 first current frame received");
+      } else if (ud == &odrv1_user_data) {
+        SerialUSB1.println("[IQ RX] ODrive 1 first current frame received");
+      } else if (ud == &odrv2_user_data) {
+        SerialUSB1.println("[IQ RX] ODrive 2 first current frame received");
+      }
+    }
     ud->received_iq_current = true;
 }
 

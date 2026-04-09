@@ -88,7 +88,7 @@ void setOdriveTorque(ODriveCAN &odrv, ODriveUserData &data, float torque);
 
 void stopOdrive(ODriveCAN &odrv, ODriveUserData &data);
 
-void printOdriveCurrent(ODriveUserData &data);
+void printOdriveCurrent(ODriveCAN* od, ODriveUserData &data);
 
 
 #endif // ODRIVE_H
