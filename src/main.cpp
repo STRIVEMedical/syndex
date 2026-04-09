@@ -47,39 +47,25 @@ void setup() {
     }
 
     // Put ODrive 2 into closed-loop velocity control for a slow spin test.
-    enable_closed_loop(odrv2, odrv2_user_data);
-    odrv2.setControllerMode(
-        ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL,
-        ODriveInputMode::INPUT_MODE_PASSTHROUGH);
-    odrv2.setVelocity(0.5f);
-    SerialUSB1.println("Started slow velocity test on ODrive 2");
+    // enable_closed_loop(odrv2, odrv2_user_data);
+    // odrv2.setControllerMode(
+    //     ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL,
+    //     ODriveInputMode::INPUT_MODE_PASSTHROUGH);
+    // odrv2.setVelocity(0.5f);
+    // SerialUSB1.println("Started slow velocity test on ODrive 2");
 
 
 
     SerialUSB1.printf("USB Serial: %u\n", teensyUsbSN());
     SerialUSB1.println("Startup complete");
 
-  //   Get_Iq_msg_t iq_msg;
-  // if (odrv2.getCurrents(iq_msg, 50)) {
-  //   odrv2_user_data.last_iq_msg = iq_msg;
-  //   odrv2_user_data.received_iq_current = true;
-  //   SerialUSB1.println("Primed ODrive 0 IQ sample");
-  // } else {
-  //   SerialUSB1.println("ODrive 0 IQ prime request timed out");
-  // }
 }
 
 
 void loop() {
 
-    // Auto-reboot hook — must be near the top of loop()
-    // if (Serial.baud() == 134) {
-    //     _reboot_Teensyduino_();
-    // }
-  // Keep CAN traffic serviced continuously (heartbeats/status/callbacks).
-
   pumpEvents(can_intf);
-    // Poll for incoming USB packets and process them
+  // Poll for incoming USB packets and process them
   pollSerialPackets();
   processIncomingPackets();
   // state_e prevState = currState;

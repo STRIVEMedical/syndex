@@ -51,23 +51,23 @@ void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data) {
  */
 void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data) {
   // Wait until ODrive confirms torque control and passthrough input mode
-  while ((data.last_controller_mode.Control_Mode != 
-        ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL) || 
-        (data.last_input_mode.Input_Mode != 
-        ODriveInputMode::INPUT_MODE_PASSTHROUGH)) {
+  // while ((data.last_controller_mode.Control_Mode != 
+  //       ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL) || 
+  //       (data.last_input_mode.Input_Mode != 
+  //       ODriveInputMode::INPUT_MODE_PASSTHROUGH)) {
     
-    odrv.clearErrors(); 
-    delay(1);
+  //   odrv.clearErrors(); 
+  //   delay(1);
     
-    // Set control mode to torque control and Set input mode to passthrough (direct torque commands)
-    odrv.setControllerMode(ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL, ODriveInputMode::INPUT_MODE_PASSTHROUGH);
+  // Set control mode to torque control and Set input mode to passthrough (direct torque commands)
+  odrv.setControllerMode(ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL, ODriveInputMode::INPUT_MODE_PASSTHROUGH);
     
     // Process CAN messages to update status
-    for (int i = 0; i < 15; i++) {
-      delay(10);
-      pumpEvents(can_intf);
-    }
+  for (int i = 0; i < 15; i++) {
+    delay(10);
+    pumpEvents(can_intf);
   }
+  
   SerialUSB1.println("Torque control enabled");
 }
 
@@ -106,12 +106,11 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
   SerialUSB1.print(node_id);
   SerialUSB1.print(" Found! Axis State: 0x");
   SerialUSB1.println(data.last_heartbeat.Axis_State, HEX);
-  // Serial.println("Entering closed loop control...");
-  // enable_closed_loop(odrv, data); 
+  SerialUSB1.println("Entering closed loop control...");
+  enable_closed_loop(odrv, data); 
   // Enable torque control mode (required for gravity compensation)
-  // Serial.println("Enabling torque control and input passthrough...");
-  // enable_torque_control(odrv, data);
-
+  SerialUSB1.println("Enabling torque control and input passthrough...");
+  enable_torque_control(odrv, data);
   SerialUSB1.print("ODrive Node ");
   SerialUSB1.print(node_id);
   SerialUSB1.println(" Running!");

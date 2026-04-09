@@ -124,7 +124,8 @@ bool verifyUSB(){
 bool verifyODriveComms(){
     // Check all ODrives are still sending heartbeats over CAN
     if (!odrv0_user_data.received_heartbeat ||
-        !odrv1_user_data.received_heartbeat) {
+        !odrv1_user_data.received_heartbeat ||
+        !odrv2_user_data.received_heartbeat) {
         setError(ODRIVE_ERROR);
         return false;       // An ODrive stopped responding
     }
@@ -455,6 +456,7 @@ void stateUpdate()
     // data LED turns on once on entry via static flag.
     case READY:
     {
+        // FOR SENSING
         static bool readyTelemInit = false;
         static uint32_t lastJointTelemMs = 0;
         static uint32_t lastStatusTelemMs = 0;
