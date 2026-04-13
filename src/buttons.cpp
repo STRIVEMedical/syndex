@@ -15,6 +15,7 @@ void buttonInit(button_t* b) {
     b->lastButtonState = b->buttonState;
 }
 
+// not used later in the code
 void buttonUpdate(button_t* b) {
     b->lastButtonState = b->buttonState;
     b->buttonState = digitalRead(b->pin);
