@@ -199,10 +199,12 @@ void emergencyStop() {
  * @note With absolute encoders, homing mainly verifies safe position
  */
 // void performHoming() {
-//   // 1. Read all AS5600 encoders
-//   // 2. Check if within safe startup** **range
-//   // 3. If not, gently move to safe position
-//   // 4. Set zero offsets if needed
+  // 1. Read ODrive positions
+  // 2. Check if within safe startup range
+    // Define a startup range tolerance
+  // 3. If not, gently move to safe position
+  // 4. Set zero offsets if needed
+    // In other words: find starting position of ODrive joints
 // }
 
 
