@@ -7,6 +7,7 @@
 
 #include <Arduino.h>
 #include "odrive.h"
+#include "joint.h"
 
 /* =========================
  * ODRIVE STATE AND CONTROL MODE
@@ -200,12 +201,83 @@ void emergencyStop() {
  */
 // void performHoming() {
   // 1. Read ODrive positions
+  
   // 2. Check if within safe startup range
     // Define a startup range tolerance
   // 3. If not, gently move to safe position
   // 4. Set zero offsets if needed
     // In other words: find starting position of ODrive joints
 // }
+
+void performHoming(){
+  float home_positions[3] = {0, 0, 0};
+  float tolerance = 0.05;
+  float homing_velocity = 0.2;
+  uint32_t timeout_ms = 5000;
+
+  SerialUSB1.println("Performing homing sequence...");
+  Joint* joint_list[3];
+  for (int i = 0; i < 3; i++) {
+    joint_list[i] = getJoint(i + 4);
+  }
+
+  for (int i = 0 ; i <3; i++){
+    Joint* j = joint_list[i];
+
+    pumpEvents(can_intf);
+    float current_position = j->user_data->last_feedback.Pos_Estimate;
+    float error = j->home_angle - current_position;
+
+    SerialUSB1.print("Joint ");
+    SerialUSB1.print(j-> label);
+    SerialUSB1.print("Position: ");
+    SerialUSB1.print(current_position);
+    SerialUSB1.print(" (Error: ");
+    SerialUSB1.print(error);
+    SerialUSB1.println(")");
+
+    if (abs(error) <= tolerance) {
+      SerialUSB1.print(j-> label);
+      SerialUSB1.println(" already within tolerance, skipping homing.");
+      j -> is_homed = true;
+      continue;
+    }
+
+    SerialUSB1.print("Moving Joint ");
+    SerialUSB1.print(j-> label);
+    SerialUSB1.println(" to home position...");
+
+    uint32_t start_ms = millis();
+
+    while (true){
+      pumpEvents(can_intf);
+      current_position = j->user_data->last_feedback.Pos_Estimate;
+      error = j->home_angle - current_position;
+      if(abs(error) <= tolerance){
+        j->odrive->setVelocity(0, 0);
+        j->is_homed = true;
+        SerialUSB1.print(j-> label);
+        SerialUSB1.println(" homed!");
+        break;
+
+      }
+
+      if(millis() - start_ms > timeout_ms){
+        j->odrive->setVelocity(0, 0);
+        SerialUSB1.print(j-> label);
+        SerialUSB1.println(" homing timeout!");
+        break;
+      }
+
+      float vel_cmd = constrain(error * 2, -homing_velocity, homing_velocity);
+      j->odrive->setVelocity(vel_cmd, 0);
+      delay(10);
+    }
+  }
+
+  SerialUSB1.println("Homing sequence complete.");
+
+}
 
 
 void printOdriveCurrent(ODriveCAN* odrv, ODriveUserData &data, uint8_t node_id) {
