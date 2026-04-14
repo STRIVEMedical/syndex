@@ -1,34 +1,44 @@
 #include "LEDs.h"
 
-#define FALSE 0
-#define TRUE 1
-
 namespace Led {
-    /* Receiving satisfactory power for Teensy operation */
-    led_t powerLED = {7, POWER};
-
-    /* YELLOW: Receiving data from encoders/ODrives, transitively ready to send data to PC */
-    led_t dataLED = {8, DATA};
-
-    /* RED: Toggle errorLED on an error mode */
-    led_t errorLED = {28, ERROR};
+    led_t powerLed = {15, POWER};   // Green
+    led_t dataLed = {14, DATA};    // Yellow
+    led_t errorLed = {13, ERROR};   // Red
 
     void setup() {
-        initLED(&Led::powerLED);
-        initLED(&Led::dataLED);
-        initLED(&Led::errorLED);
+        initLED(&powerLed);
+        initLED(&dataLed);
+        initLED(&errorLed);
+    }
+
+    void loop() {
+
+        led_t* leds[] = { &powerLed,  &dataLed,  &errorLed  };
+        const char* labels[] = {"Power LED", "Data LED", "Error LED" };
+        const int count = sizeof(leds) / sizeof(leds[0]);
+
+        for (int i = 0; i < count; i++) {
+            Serial.print(labels[i]);
+            //Serial.println(" ON");
+
+            ONToggleLED(leds[i]);
+            //delay(500);
+
+            //OFFToggleLED(leds[i]);
+            //delay(100);
+        }
     }
 }
-// intialize the LEDs, set pin modes, and set initial states
+
 void initLED(led_t* l) {
     pinMode(l->pin, OUTPUT);
+    digitalWrite(l->pin, LOW);
 }
-// turn off led
+
 void ONToggleLED(led_t* l) {
     digitalWrite(l->pin, HIGH);
-    delay(5);
 }
-// turn on led
+
 void OFFToggleLED(led_t* l) {
     digitalWrite(l->pin, LOW);
 }
