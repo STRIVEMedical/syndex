@@ -86,20 +86,20 @@ bool verifyLED(){
     // Initialize all LED pins as OUTPUT
     Led::setup();
     // Test power LED — write HIGH and confirm pin responds
-    ONToggleLED(&Led::powerLed);
-    if (digitalRead(Led::powerLed.pin) != HIGH) {
+    ONToggleLED(&Led::powerLED);
+    if (digitalRead(Led::powerLED.pin) != HIGH) {
         setError(LED_ERROR);
         return false;
     }
     // Test data LED — write HIGH and confirm pin responds
-    ONToggleLED(&Led::dataLed);
-    if (digitalRead(Led::dataLed.pin) != HIGH) {
+    ONToggleLED(&Led::dataLED);
+    if (digitalRead(Led::dataLED.pin) != HIGH) {
         setError(LED_ERROR);
         return false;
     }
     // Test error LED — write HIGH and confirm pin responds
-    ONToggleLED(&Led::errorLed);
-    if (digitalRead(Led::errorLed.pin) != HIGH) {
+    ONToggleLED(&Led::errorLED);
+    if (digitalRead(Led::errorLED.pin) != HIGH) {
         setError(LED_ERROR);
         return false;
     }
@@ -258,9 +258,9 @@ void stopODrives(){
  * Called after ODrives are powered off as part of orderly shutdown.
  */
 void powerOffPeripherals(){
-    OFFToggleLED(&Led::powerLed);
-    OFFToggleLED(&Led::dataLed);
-    OFFToggleLED(&Led::errorLed);
+    OFFToggleLED(&Led::powerLED);
+    OFFToggleLED(&Led::dataLED);
+    OFFToggleLED(&Led::errorLED);
 }
 
 
@@ -269,7 +269,7 @@ void powerOffPeripherals(){
 * Error LED remains on until errorRecovery() is called.
 */
 void turnOnErrorLED(){
-    ONToggleLED(&Led::errorLed);
+    ONToggleLED(&Led::errorLED);
 }
 
 /*
@@ -280,7 +280,7 @@ void turnOnErrorLED(){
  */
 void errorRecovery(){
     clearError();                  // reset currError to NO_ERROR
-    OFFToggleLED(&Led::errorLed);  // turn off error LED
+    OFFToggleLED(&Led::errorLED);  // turn off error LED
     currState = BOOTUP;            // restart verification from beginning
 }
 
@@ -404,8 +404,8 @@ void stateUpdate()
     // Failure: transition to ERROR_STATE.
     case BOOTUP:
         if (verifyODrive() && verifyI2C() && verifyLED()) {
-            ONToggleLED(&Led::powerLed);   // power LED on = system alive
-            OFFToggleLED(&Led::errorLed);  // ensure error LED is off
+            ONToggleLED(&Led::powerLED);   // power LED on = system alive
+            OFFToggleLED(&Led::errorLED);  // ensure error LED is off
             currState = IDLE;
         }
         else {
@@ -460,7 +460,7 @@ void stateUpdate()
         static uint32_t lastAdmittanceUs = 0;
 
         if (!enteredReady) {
-            ONToggleLED(&Led::dataLed); // data LED on = system operational
+            ONToggleLED(&Led::dataLED); // data LED on = system operational
             // Reset integrated admittance state when entering READY to avoid step jumps.
             resetAdmittanceController();
             lastAdmittanceUs = micros();
