@@ -12,7 +12,6 @@ struct AdmittanceState {
     // Admittance model parameters (tune these)
     float M;        // Virtual mass (kg·m²) — higher = sluggish
     float B;        // Virtual damping (N·m·s/rad) — higher = slower response
-    float G;        // Gravity compensation torque (N·m) — function of joint angle
 
     // State variables
     float vel;      // Virtual velocity (rad/s)
@@ -22,7 +21,11 @@ struct AdmittanceState {
     float torque_constant; // Kt of your motor (N·m/A)
     float gear_ratio;      // Pulley/gearbox ratio
 
-    float gravity_torque;  // Current gravity torque estimate
+    // Baseline current sampled at READY entry with arm stationary.
+    // Captures gravity + friction offset so only *changes* from this
+    // baseline are treated as human-applied force.
+    // Re-calibrated every time resetAdmittanceController() is called.
+    float iq_bias;
 };
 
 void initAdmittance(AdmittanceState* s, float M, float B, float Kt, float ratio);

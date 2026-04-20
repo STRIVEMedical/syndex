@@ -27,6 +27,19 @@ bool verifyODrive(){
         setError(ODRIVE_ERROR);
         return false;
     }
+
+    bool odrivesHealthy = true;
+#ifdef ODRIVE_FULL
+    odrivesHealthy &= printOdriveError(&odrv0, 0);
+#endif
+    odrivesHealthy &= printOdriveError(&odrv1, 1);
+    odrivesHealthy &= printOdriveError(&odrv2, 2);
+
+    if (!odrivesHealthy) {
+        setError(ODRIVE_ERROR);
+        return false;
+    }
+
     return true;
 }
 /*
@@ -38,6 +51,10 @@ bool verifyI2C(){
     Wire.beginTransmission(TCA_ADDR);
     uint8_t error = Wire.endTransmission();
     if (error != 0) {
+        SerialUSB1.print("[I2C][BOOTUP] TCA9548A ACK failed at 0x");
+        SerialUSB1.print(TCA_ADDR, HEX);
+        SerialUSB1.print(" wireErr=");
+        SerialUSB1.println((int)error);
         setError(I2C_ERROR);
         return false;
     }
@@ -48,6 +65,8 @@ bool verifyI2C(){
     for (uint8_t i = 0; i < NUM_JOINTS; i++) {
         Joint* j = getJoint(i);
         if (j == nullptr) {
+            SerialUSB1.print("[I2C][BOOTUP] Null joint pointer at index ");
+            SerialUSB1.println((int)i);
             setError(I2C_ERROR);
             return false;
         }
@@ -61,6 +80,11 @@ bool verifyI2C(){
         tcaSelect(j->sensor_channel);
         uint16_t raw = readRawAS5600();
         if (raw == 0xFFFF) {
+            SerialUSB1.print("[I2C][BOOTUP] AS5600 read failed on mux channel ");
+            SerialUSB1.print((int)j->sensor_channel);
+            SerialUSB1.print(" (joint index ");
+            SerialUSB1.print((int)i);
+            SerialUSB1.println(")");
             setError(I2C_ERROR);
             return false;
         }
@@ -69,6 +93,10 @@ bool verifyI2C(){
     }
 
     if (detectedExternalEncoders != expectedExternalEncoders) {
+        SerialUSB1.print("[I2C][BOOTUP] Encoder count mismatch expected=");
+        SerialUSB1.print((int)expectedExternalEncoders);
+        SerialUSB1.print(" detected=");
+        SerialUSB1.println((int)detectedExternalEncoders);
         setError(I2C_ERROR);
         return false;
     }
@@ -119,7 +147,10 @@ bool verifyUSB(){
 //Checks whether the ODrive comms are online
 bool verifyODriveComms(){
     // Check all ODrives are still sending heartbeats over CAN
-    if (!odrv0_user_data.received_heartbeat ||
+    if (
+#ifdef ODRIVE_FULL
+        !odrv0_user_data.received_heartbeat ||
+#endif
         !odrv1_user_data.received_heartbeat ||
         !odrv2_user_data.received_heartbeat) {
         setError(ODRIVE_ERROR);
@@ -224,7 +255,12 @@ void enableODrivePacketSend()
     telemStatusPayload status{};
 
     // check ODrive heartbeats are still active over CAN
-    if (!odrv0_user_data.received_heartbeat || !odrv1_user_data.received_heartbeat || !odrv2_user_data.received_heartbeat) {
+    if (
+#ifdef ODRIVE_FULL
+        !odrv0_user_data.received_heartbeat ||
+#endif
+        !odrv1_user_data.received_heartbeat ||
+        !odrv2_user_data.received_heartbeat) {
         setError(ODRIVE_ERROR);
         // notify host PC that ODrive communication failed
         packet errPacket(ERROR_MESSAGE);
@@ -394,7 +430,7 @@ void sendStateErrorLog() {
  *   HOMING      --> READY       (homing sequence complete)
  *   READY       --> POWERINGOFF (shutdown commanded)
  *   Any state   --> ERROR_STATE (fault detected)
- *   ERROR_STATE --> BOOTUP      (operator acknowledges and presses powerButton)
+ *   ERROR_STATE --> ERROR_STATE  (latched fault until device reset)
 */
 void stateUpdate()
 {
@@ -458,6 +494,8 @@ void stateUpdate()
         static uint32_t lastJointTelemMs = 0;
         static uint32_t lastStatusTelemMs = 0;
         static uint32_t lastAdmittanceUs = 0;
+        static uint32_t lastOdriveErrorCheckMs = 0;
+        static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 500;
 
         if (!enteredReady) {
             ONToggleLED(&Led::dataLed); // data LED on = system operational
@@ -491,6 +529,20 @@ void stateUpdate()
             enableODrivePacketSend();
             lastStatusTelemMs = now;
         }
+
+        // Periodically read ODrive error registers so faults show up in serial
+        // (the red flashing LED won't tell you which fault it is).
+        if ((now - lastOdriveErrorCheckMs) >= ODRIVE_ERROR_CHECK_INTERVAL_MS) {
+#ifndef ODRIVE_FULL
+            printOdriveError(&odrv1, 1);
+            printOdriveError(&odrv2, 2);
+#else
+            printOdriveError(&odrv0, 0);
+            printOdriveError(&odrv1, 1);
+            printOdriveError(&odrv2, 2);
+#endif
+            lastOdriveErrorCheckMs = now;
+        }
         break;
     }
 
@@ -502,16 +554,18 @@ void stateUpdate()
         break;
 
     // Safe all hardware immediately and report fault.
-    // Waits for operator to press powerButton before recovery.
+    // Fault is latched to avoid auto-restart loops and noisy serial output.
     case ERROR_STATE:
-        stopODrives();          // emergency stop all motors
-        turnOnErrorLED();       // alert operator visually
-        sendStateErrorLog();       // report specific fault over Serial
-        // Wait for operator acknowledgement before attempting recovery
-        if (digitalRead(buttonPins::powerButton.pin) == LOW) {
-                errorRecovery();    // clear error and restart from BOOTUP
+    {
+        static bool errorLatched = false;
+        if (!errorLatched) {
+            stopODrives();          // emergency stop all motors once on entry
+            turnOnErrorLED();       // alert operator visually
+            sendStateErrorLog();    // report specific fault over Serial once
+            errorLatched = true;
         }
         break;
+    }
 
     // Unknown or corrupted state — should never be reached.
     // Immediately safe all hardware and transition to ERROR_STATE.

@@ -2,15 +2,27 @@
 #include "comms.h"
 #include "odrive.h"
 
+
+/*
+joint # |  Odrv/enc
+    0   |   odrv 0
+    1   |   odrv 1
+    2   |   odrv 2
+    3   |   enc 3
+    4   |   enc 2
+    5   |   enc 1
+    6   |   enc 0
+
+*/
 Joint joints[NUM_JOINTS] = {
     // odrive  user_data         sensor_ch         max_t  home   onboard  label      angle  raw  vel    homed  target_t
-    { nullptr, nullptr,          0,                0.0f,  0.0f,  false,   "EXT_CH0", 0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          1,                0.0f,  0.0f,  false,   "EXT_CH1", 0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          2,                0.0f,  0.0f,  false,   "EXT_CH2", 0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          3,                0.0f,  0.0f,  false,   "EXT_CH3", 0.0f,  0,   0.0f,  false, 0.0f },
     { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
     { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
     { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          3,                0.0f,  0.0f,  false,   "EXT_CH3", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          2,                0.0f,  0.0f,  false,   "EXT_CH2", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          1,                0.0f,  0.0f,  false,   "EXT_CH1", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          0,                0.0f,  0.0f,  false,   "EXT_CH0", 0.0f,  0,   0.0f,  false, 0.0f },
 
 };
 
@@ -23,6 +35,13 @@ void initJoints() {
         joints[i].is_homed = false;
         joints[i].target_torque = 0.0f;
     }
+
+#ifndef ODRIVE_FULL
+    // Disable joint 0 (ROTATE / odrv0) — not connected in test setup.
+    // Admittance controller already skips joints where odrive == nullptr.
+    joints[0].odrive = nullptr;
+    SerialUSB1.println("[CONFIG] ODRIVE_TEST_1_2: joint 0 (ROTATE) disabled");
+#endif
 
     SerialUSB1.println("Joints initialized with configured mapping");
 }

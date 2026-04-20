@@ -58,8 +58,9 @@ void setup() {
 
 
 
-    SerialUSB1.printf("USB Serial: %u\n", teensyUsbSN());
-    SerialUSB1.println("Startup complete");
+    SerialUSB1.print("[SYS] USB serial: ");
+    SerialUSB1.println(teensyUsbSN());
+    SerialUSB1.println("[SYS] Startup complete");
 
 }
 
