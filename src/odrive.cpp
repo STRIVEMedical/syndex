@@ -254,7 +254,8 @@ bool initMultiOdrives() {
     return false;
   }
 #else  // ODRIVE_TEST_1_2
-  if (!initOdrive(odrv1, odrv1_user_data, 1)
+  if (!initOdrive(odrv0, odrv0_user_data, 0)
+    || !initOdrive(odrv1, odrv1_user_data, 1)
     || !initOdrive(odrv2, odrv2_user_data, 2)) {
     return false;
   }
