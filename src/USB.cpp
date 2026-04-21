@@ -17,6 +17,7 @@ static void handleRequestTelem();
 static void handleStartHoming();
 static void handleSetJointParameter(const setJointParameterPayload& payload);
 static void handleEStop();
+static void handleConfirmHome();
 
 // 16-bit Float Conversion Functions
 // Converts 32-bit float to 16-bit float representation for compact transmission
@@ -64,6 +65,8 @@ packet completedPacket;
 // Flag for ping received
 volatile bool pingReceived = false;
 volatile bool pingEventPending = false;
+volatile bool confirmHomePending = false;
+volatile bool moveToHomePending = false;
 
 // Reset parser back to waiting for sync
 void resetParser() {
@@ -238,6 +241,9 @@ void processIncomingPackets() {
       case CMD_ESTOP:
         handleEStop();
         break;
+      case CMD_CONFIRM_HOME:
+        handleConfirmHome();
+        break;
       default:
         // Unknown packet type, ignore or send NACK
         sendCmdNack();
@@ -409,8 +415,7 @@ static void handleRequestTelem() {
 }
 
 static void handleStartHoming() {
-  // TODO: Start homing procedure
-  // For now, send ACK
+  moveToHomePending = true;
   sendCmdAck();
 }
 
@@ -423,5 +428,10 @@ static void handleSetJointParameter(const setJointParameterPayload& payload) {
 static void handleEStop() {
   // TODO: Emergency stop
   // For now, send ACK
+  sendCmdAck();
+}
+
+static void handleConfirmHome() {
+  confirmHomePending = true;
   sendCmdAck();
 }

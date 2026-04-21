@@ -61,11 +61,11 @@ void resetAdmittanceController() {
     }
 
     g_admittance[i].iq_bias = (count > 0) ? (sum / count) : 0.0f;
-    SerialUSB1.print("[ADM] j");
-    SerialUSB1.print(i);
-    SerialUSB1.print(" iq_bias=");
-    SerialUSB1.print(g_admittance[i].iq_bias, 4);
-    SerialUSB1.println(" A");
+    // SerialUSB1.print("[ADM] j");
+    // SerialUSB1.print(i);
+    // SerialUSB1.print(" iq_bias=");
+    // SerialUSB1.print(g_admittance[i].iq_bias, 4);
+    // SerialUSB1.println(" A");
   }
 }
 
@@ -120,21 +120,21 @@ void stepAdmittanceController(float dt) {
 
     j->odrive->setVelocity(vel_cmd, 0.0f);
 
-    if (should_debug) {
-      SerialUSB1.print("[ADM] j");
-      SerialUSB1.print(i);
-      SerialUSB1.print(" iq=");
-      SerialUSB1.print(iq_measured, 3);
-      SerialUSB1.print("A (bias=");
-      SerialUSB1.print(g_admittance[i].iq_bias, 3);
-      SerialUSB1.print(") tau_raw=");
-      SerialUSB1.print(tau_raw, 3);
-      SerialUSB1.print("Nm tau_ext=");
-      SerialUSB1.print(tau_ext, 3);
-      SerialUSB1.print("Nm vel_cmd=");
-      SerialUSB1.print(vel_cmd, 3);
-      SerialUSB1.println(" turns/s");
-    }
+    // if (should_debug) {
+    //   SerialUSB1.print("[ADM] j");
+    //   SerialUSB1.print(i);
+    //   SerialUSB1.print(" iq=");
+    //   SerialUSB1.print(iq_measured, 3);
+    //   SerialUSB1.print("A (bias=");
+    //   SerialUSB1.print(g_admittance[i].iq_bias, 3);
+    //   SerialUSB1.print(") tau_raw=");
+    //   SerialUSB1.print(tau_raw, 3);
+    //   SerialUSB1.print("Nm tau_ext=");
+    //   SerialUSB1.print(tau_ext, 3);
+    //   SerialUSB1.print("Nm vel_cmd=");
+    //   SerialUSB1.print(vel_cmd, 3);
+    //   SerialUSB1.println(" turns/s");
+    // }
   }
 
   if (should_debug) {

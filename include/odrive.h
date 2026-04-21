@@ -77,6 +77,8 @@ void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id);
 void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id);
 
 void enable_velocity_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id);
+
+void enable_position_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id);
 /**
  * @brief Emergency stop function for all ODrives
  * 

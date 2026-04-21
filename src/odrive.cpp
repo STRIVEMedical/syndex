@@ -11,7 +11,7 @@
 // Softer velocity loop tuning for manual admittance testing.
 static const float TEST_VEL_GAIN = 0.001f;
 static const float TEST_VEL_INT_GAIN = 0.0f;
-static const float TEST_VEL_LIMIT_TURNS_PER_S = 15.0f;
+static const float TEST_VEL_LIMIT_TURNS_PER_S = 50.0f;  // high limit — current_soft_max controls resistance, not this
 static const float TEST_CURRENT_SOFT_MAX_A = 1.0f;
 
 static const char* controlModeName(uint8_t mode) {
@@ -75,16 +75,16 @@ static void printLastControllerMode(const ODriveUserData& data, uint8_t node_id)
  * @note Repeatedly sends state command until ODrive confirms mode change
  */
 void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
+  odrv.clearErrors();
   odrv.setState(ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL);
 
   for (int i = 0; i < 15; i++) {
     delay(10);
     pumpEvents(can_intf);
-}
+  }
   SerialUSB1.print("[ODRIVE] Node ");
   SerialUSB1.print(node_id);
   SerialUSB1.println(" closed loop enabled");
-
 }
 
 /**
@@ -153,6 +153,23 @@ void enable_velocity_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node
   printLastControllerMode(data, node_id);
 }
 
+void enable_position_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
+  odrv.setControllerMode(
+    ODriveControlMode::CONTROL_MODE_POSITION_CONTROL,
+    ODriveInputMode::INPUT_MODE_PASSTHROUGH);
+  data.last_controller_mode.Control_Mode = ODriveControlMode::CONTROL_MODE_POSITION_CONTROL;
+  data.last_input_mode.Input_Mode = ODriveInputMode::INPUT_MODE_PASSTHROUGH;
+  data.received_last_controller_mode = true;
+  data.received_last_input_mode = true;
+  for (int i = 0; i < 15; i++) {
+    delay(10);
+    pumpEvents(can_intf);
+  }
+  SerialUSB1.print("[ODRIVE] Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.println(" position mode enabled");
+}
+
 
 /* =========================
  * PER-ODRIVE INIT (GENERAL)
@@ -188,6 +205,13 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
   SerialUSB1.print(node_id);
   SerialUSB1.print(" found, axis_state=0x");
   SerialUSB1.println(data.last_heartbeat.Axis_State, HEX);
+
+  // Clear any stale errors from the previous session (e.g. disarm=0x8000 velocity
+  // limit violation) so they don't block the closed-loop transition or fail verifyODrive().
+  odrv.clearErrors();
+  delay(20);
+  pumpEvents(can_intf);
+
   SerialUSB1.print("[ODRIVE] Node ");
   SerialUSB1.print(node_id);
   SerialUSB1.println(" entering closed loop...");
@@ -279,19 +303,6 @@ void emergencyStop() {
   }
   SerialUSB1.println("[SAFETY] Emergency stop asserted");
 }
-
-/**
- * @brief Performs homing sequence using AS5600 absolute encoders
- * 
- * @usage Called once after system initialization or on homing request
- * @note With absolute encoders, homing mainly verifies safe position
- */
-// void performHoming() {
-//   // 1. Read all AS5600 encoders
-//   // 2. Check if within safe startup** **range
-//   // 3. If not, gently move to safe position
-//   // 4. Set zero offsets if needed
-// }
 
 
 void printOdriveCurrent(ODriveCAN* odrv, ODriveUserData &data, uint8_t node_id) {

@@ -27,6 +27,7 @@ enum packetType : uint8_t {
   CMD_START_HOMING = 0x06,
   CMD_SET_JOINT_PARAMETER = 0x07,
   CMD_ESTOP = 0x08,
+  CMD_CONFIRM_HOME = 0x09,  // Operator has positioned arm — latch current encoder pos as zero
   // Device -> Host (Telemetry & Responses)
   RESP_PONG = 0x81,
   RESP_ACK = 0x82,
@@ -139,6 +140,10 @@ void buildTelemJointPayload(telemJointDataPayload& payload, int jointID, float a
 extern volatile bool pingReceived;
 // One-shot flag set on each CMD_PING and consumed by state machine transition logic.
 extern volatile bool pingEventPending;
+// One-shot flag set when CMD_CONFIRM_HOME arrives; consumed by the HOMING state to latch zero.
+extern volatile bool confirmHomePending;
+// One-shot flag set when CMD_START_HOMING arrives; consumed by the READY state to drive arm to home pos.
+extern volatile bool moveToHomePending;
 
 
 #endif // USB_H

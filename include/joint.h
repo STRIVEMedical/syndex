@@ -43,10 +43,11 @@ void readJointAngles();
 // Print joint status
 void printJointStatus();
 
-void startHoming();
-
+// Returns true if all ODrive-backed joints have had their zero reference established via confirmHome().
 bool isHomed();
 
-bool verifyHoming();
+// Latches the current encoder position as 0 on all active ODrives and marks joints homed.
+// Call this after the operator has physically placed the arm at the home pose.
+void confirmHome();
 
 #endif // JOINT_H

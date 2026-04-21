@@ -1,13 +1,39 @@
+
 #include "states.h"
 #include "odrive.h"
+#include <cmath>
 #include "LEDs.h"
 #include "comms.h"
 #include "buttons.h"
 #include "USB.h"
 #include "Wire.h"
 #include "joint.h"
+#include <cstddef>
+
+
+extern Joint joints[NUM_JOINTS];
 #include "admittance_controller.h"
 #include "errors.h"
+// Test function: command a fixed velocity to a joint for debugging
+void testSetJointVelocity(int jointIdx, float velocity) {
+    if (jointIdx < 0 || jointIdx >= NUM_JOINTS) {
+        SerialUSB1.print("[TEST] Invalid joint index: ");
+        SerialUSB1.println(jointIdx);
+        return;
+    }
+    if (joints[jointIdx].odrive == nullptr) {
+        SerialUSB1.print("[TEST] Joint ");
+        SerialUSB1.print(jointIdx);
+        SerialUSB1.println(" has no ODrive attached.");
+        return;
+    }
+    SerialUSB1.print("[TEST] Setting joint ");
+    SerialUSB1.print(jointIdx);
+    SerialUSB1.print(" velocity to ");
+    SerialUSB1.println(velocity, 4);
+    joints[jointIdx].odrive->setVelocity(velocity, 0.0f);
+}
+
 
 state_e currState = BOOTUP;
 errorCode_e currError = NO_ERROR;
@@ -417,6 +443,7 @@ void stateUpdate()
     // Success: power LED on, transition to IDLE.
     // Failure: transition to ERROR_STATE.
     case BOOTUP:
+        // DEBUG: Command joint 0 to move at 2 turns/s for test
         if (verifyODrive() && verifyI2C() && verifyLED()) {
             ONToggleLED(&Led::powerLed);   // power LED on = system alive
             OFFToggleLED(&Led::errorLed);  // ensure error LED is off
@@ -425,11 +452,13 @@ void stateUpdate()
         else {
             currState = ERROR_STATE;
         }
+
         break;
 
     // Wait for CMD_PING from host PC.
     // PING received: transition to CONNECTED. (Pong is sent in handlePing)
     case IDLE:
+
         if (pollCmdPing()) {
             currState = CONNECTED;
         }
@@ -452,27 +481,26 @@ void stateUpdate()
         }
         break;
 
-    // Drive arm to home position using position control.
-    // startHoming() sends command once via static flag.
-    // verifyHoming() polls until complete, then transition to READY.
+    // Manual homing: arm is compliant (velocity/admittance mode).
+    // Operator physically places the arm at the home pose, then sends
+    // CMD_CONFIRM_HOME from Unity. The flag is set by the USB handler,
+    // consumed here to latch the current encoder position as zero on all ODrives.
     case HOMING:
     {
-        static bool homingStarted = false;
-        if (!homingStarted) {
-            startHoming();       // send position commands once
-            homingStarted = true;
-        }
-        if (verifyHoming()) {    // poll each loop until joints settle
-            homingStarted = false;  // reset for next time (e.g. after error recovery)
+        if (confirmHomePending) {
+            confirmHomePending = false;
+            confirmHome();    // SetAbsolutePosition(0) on all ODrives, marks joints homed
             currState = READY;
         }
         break;
     }
     // Normal operating state — admittance control always running.
     // data LED turns on once on entry via static flag.
+    // Sub-states: ADMITTANCE (normal), MOVING_TO_HOME (position control), RESTORING (back to velocity).
     case READY:
     {
-        // FOR SENSING
+        enum ReadySubState { ADMITTANCE, MOVING_TO_HOME, RESTORING };
+        static ReadySubState subState = ADMITTANCE;
         static bool readyTelemInit = false;
         static bool enteredReady = false;
         static uint32_t lastJointTelemMs = 0;
@@ -482,8 +510,7 @@ void stateUpdate()
         static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 500;
 
         if (!enteredReady) {
-            ONToggleLED(&Led::dataLed); // data LED on = system operational
-            // Reset integrated admittance state when entering READY to avoid step jumps.
+            ONToggleLED(&Led::dataLed);
             resetAdmittanceController();
             lastAdmittanceUs = micros();
             enteredReady = true;
@@ -496,12 +523,87 @@ void stateUpdate()
             readyTelemInit = true;
         }
 
-        // Sense first, then run admittance update in the same READY cycle.
-        readJointAngles();
-        uint32_t nowUs = micros();
-        float dt = (nowUs - lastAdmittanceUs) * 1e-6f;
-        lastAdmittanceUs = nowUs;
-        stepAdmittanceController(dt);
+        // H key: drive arm to home using a velocity P controller.
+        // Stays in velocity mode the whole time — no position gain config required.
+        // vel_cmd = HOME_KP * (home_pos - pos_estimate), clamped to HOME_MAX_VEL.
+        // static const float HOME_KP       = 8.0f;   // turns/s per turn of error
+        // static const float HOME_MAX_VEL  = 11.0f;   // max speed during return (turns/s)
+        static const float HOME_TOL      = 0.02f;  // arrival tolerance (turns)
+        static uint32_t moveToHomeStartMs = 0;
+        static const uint32_t MOVE_TO_HOME_TIMEOUT_MS = 15000;
+
+        if (moveToHomePending && subState == ADMITTANCE) {
+            moveToHomePending = false;
+            SerialUSB1.println("[READY] Moving to home via velocity P control.");
+            moveToHomeStartMs = millis();
+            subState = MOVING_TO_HOME;
+        }
+
+        if (subState == MOVING_TO_HOME) {
+            bool allArrived = true;
+            for (int i = 0; i < NUM_JOINTS; i++) {
+                if (!joints[i].use_onboard_encoder || !joints[i].is_homed || joints[i].odrive == nullptr) {
+                    continue;
+                }
+                // Switch to position control mode if not already
+                if (joints[i].user_data->last_controller_mode.Control_Mode != ODriveControlMode::CONTROL_MODE_POSITION_CONTROL) {
+                    enable_position_control(*joints[i].odrive, *joints[i].user_data, i);
+                }
+                float pos = joints[i].user_data->last_feedback.Pos_Estimate;
+                float err = joints[i].home_pos - pos;
+                SerialUSB1.print("[HOMING][POS] Joint ");
+                SerialUSB1.print(i);
+                SerialUSB1.print(": pos=");
+                SerialUSB1.print(pos, 4);
+                SerialUSB1.print(", home=");
+                SerialUSB1.print(joints[i].home_pos, 4);
+                SerialUSB1.print(", err=");
+                SerialUSB1.print(err, 4);
+                        // Before switching to position mode and calling setPosition
+                joints[i].odrive->setPosGain(20.0f);
+                joints[i].odrive->setPosition(joints[i].home_pos, 0.0f, 0.0f); // set position setpoint
+                if (fabsf(err) > HOME_TOL) {
+                    allArrived = false;
+                    SerialUSB1.println(", moving to home...");
+                } else {
+                    SerialUSB1.println(", within tolerance, holding position.");
+                }
+            }
+
+            if (allArrived) {
+                SerialUSB1.println("[READY] Home reached.");
+                subState = RESTORING;
+            } else if ((millis() - moveToHomeStartMs) > MOVE_TO_HOME_TIMEOUT_MS) {
+                SerialUSB1.println("[READY] Move-to-home timed out — stopping.");
+                // Zero out all ODrive velocity commands before returning to admittance.
+                for (int i = 0; i < NUM_JOINTS; i++) {
+                    if (joints[i].use_onboard_encoder && joints[i].odrive != nullptr)
+                        joints[i].odrive->setVelocity(0.0f, 0.0f);
+                }
+                subState = RESTORING;
+            }
+        }
+
+        if (subState == RESTORING) {
+            // Restore velocity mode for admittance after homing
+            for (int i = 0; i < NUM_JOINTS; i++) {
+                if (joints[i].use_onboard_encoder && joints[i].odrive != nullptr) {
+                    enable_velocity_control(*joints[i].odrive, *joints[i].user_data, i);
+                }
+            }
+            resetAdmittanceController();
+            lastAdmittanceUs = micros();
+            subState = ADMITTANCE;
+        }
+
+        // Normal admittance loop — only runs when not in a move-to-home sequence.
+        if (subState == ADMITTANCE) {
+            readJointAngles();
+            uint32_t nowUs = micros();
+            float dt = (nowUs - lastAdmittanceUs) * 1e-6f;
+            lastAdmittanceUs = nowUs;
+            stepAdmittanceController(dt);
+        }
 
         uint32_t now = millis();
         if ((now - lastJointTelemMs) >= JOINT_TELEM_INTERVAL_MS) {
@@ -514,8 +616,7 @@ void stateUpdate()
             lastStatusTelemMs = now;
         }
 
-        // Periodically read ODrive error registers so faults show up in serial
-        // (the red flashing LED won't tell you which fault it is).
+        // Periodically read ODrive error registers so faults show up in serial.
         if ((now - lastOdriveErrorCheckMs) >= ODRIVE_ERROR_CHECK_INTERVAL_MS) {
 #ifndef ODRIVE_FULL
             printOdriveError(&odrv1, 1);

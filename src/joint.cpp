@@ -2,7 +2,6 @@
 #include "comms.h"
 #include "odrive.h"
 
-static bool system_homed = false;
 
 
 
@@ -107,7 +106,7 @@ void printJointStatus() {
         // Label (left-aligned, 13 chars)
         const char* label = (joints[i].label != nullptr) ? joints[i].label : "UNNAMED";
         SerialUSB1.print(label);
-        for (int pad = 0; pad < (13 - strlen(label)); pad++) SerialUSB1.print(" ");
+        for (int pad = 0; pad < (13 - (int)strlen(label)); pad++) SerialUSB1.print(" ");
         SerialUSB1.print(" | ");
         
         // Angle (right-aligned, 10 chars with one decimal)
@@ -143,76 +142,46 @@ void printJointStatus() {
 }
 
 /*
- * Command the arm to move to the home position.
- * Sends homing command to all joints once via static flag.
- */
-/*
- * Commands all un-homed joints that use onboard encoders to move to
- * their configured home position via ODrive position control.
- * Sets is_homed = true per joint once the command is sent.
- * system_homed is set true only when ALL joints are homed.
- * Safe to call repeatedly — already-homed joints are skipped.
- */
-void startHoming() {
-    bool allHomed = true;
-
-    for (int i = 0; i < NUM_JOINTS; i++) {
-        if (joints[i].use_onboard_encoder) {
-            if (!joints[i].is_homed) {
-                float homePos = joints[i].home_pos;
-                joints[i].odrive->setPosition(homePos);
-                joints[i].is_homed = true;  // mark homed after command sent
-            }
-            // if still not homed for any reason, not all joints done
-            if (!joints[i].is_homed) {
-                allHomed = false;
-            }
-        }
-    }
-
-    system_homed = allHomed;
-}
-
-/*
- * Check if the arm has been homed (home position established).
+ * Returns true if all ODrive-backed joints have had their home reference
+ * established via confirmHome(). Used by the CONNECTED state to decide
+ * whether to enter HOMING on boot (always false after a power cycle).
  */
 bool isHomed() {
     for (int i = 0; i < NUM_JOINTS; i++) {
-        if (joints[i].use_onboard_encoder) {
-            if (!joints[i].is_homed) {
-                return false;  // at least one joint still needs homing
-            }
+        if (joints[i].use_onboard_encoder && !joints[i].is_homed) {
+            return false;
         }
     }
-    return system_homed;  // all onboard encoder joints are homed
+    return true;
 }
 
+
 /*
- * Polls whether the homing sequence is complete by checking two conditions:
- *   1. system_homed flag is set (all homing commands have been sent)
- *   2. All homed joints are within position tolerance of their home_pos
- *      according to the latest ODrive position feedback.
- * Returns true only when all joints have reached home within tolerance.
+ * Latches the current encoder position as zero on all active ODrives, then marks
+ * every ODrive-backed joint as homed. Call this once the operator has physically
+ * placed the arm at the desired home pose and confirmed via CMD_CONFIRM_HOME.
  */
-bool verifyHoming() {
-    if (!system_homed) {
-        return false;
-    }
-
-    const float HOME_TOLERANCE_TURNS = 0.01f;  // adjust to your mechanical tolerance
-
+void confirmHome() {
     for (int i = 0; i < NUM_JOINTS; i++) {
-        if (joints[i].use_onboard_encoder && joints[i].is_homed) {
-            float currentPos = joints[i].user_data->last_feedback.Pos_Estimate;
-            float homePos    = joints[i].home_pos;
-            float err        = currentPos - homePos;
-            if (err < 0) err = -err;  // abs without including <cmath>
-
-            if (err > HOME_TOLERANCE_TURNS) {
-                return false;  // this joint hasn't settled yet
-            }
+        if (joints[i].use_onboard_encoder && joints[i].odrive != nullptr) {
+            // Switch to position control before setting absolute position
+            joints[i].odrive->setControllerMode(3, 1); // 3 = POSITION_CONTROL, 1 = PASSTHROUGH
+            joints[i].odrive->setAbsolutePosition(0.0f);
+            joints[i].is_homed = true;
         }
     }
 
-    return true;  // all joints within tolerance
+    // setAbsolutePosition causes an instantaneous position jump in the ODrive's
+    // estimator, which trips the velocity limit and disarms the motor (disarm=0x8000).
+    // Re-enabling closed loop clears the disarm; restoring velocity control brings
+    // admittance mode back to its normal state.
+    delay(50);
+    pumpEvents(can_intf);
+#ifdef ODRIVE_FULL
+    enable_closed_loop(odrv0, odrv0_user_data, 0);
+#endif
+    enable_closed_loop(odrv1, odrv1_user_data, 1);
+    enable_closed_loop(odrv2, odrv2_user_data, 2);
+
+    SerialUSB1.println("[HOMING] Home confirmed and latched — drives re-armed.");
 }
