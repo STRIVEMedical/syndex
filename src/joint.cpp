@@ -2,6 +2,9 @@
 #include "comms.h"
 #include "odrive.h"
 
+static bool system_homed = false;
+
+
 
 /*
 joint # |  Odrv/enc
@@ -137,4 +140,79 @@ void printJointStatus() {
     }
     SerialUSB1.println("==========================================================================================");
     SerialUSB1.println();
+}
+
+/*
+ * Command the arm to move to the home position.
+ * Sends homing command to all joints once via static flag.
+ */
+/*
+ * Commands all un-homed joints that use onboard encoders to move to
+ * their configured home position via ODrive position control.
+ * Sets is_homed = true per joint once the command is sent.
+ * system_homed is set true only when ALL joints are homed.
+ * Safe to call repeatedly — already-homed joints are skipped.
+ */
+void startHoming() {
+    bool allHomed = true;
+
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        if (joints[i].use_onboard_encoder) {
+            if (!joints[i].is_homed) {
+                float homePos = joints[i].home_pos;
+                joints[i].odrive->setPosition(homePos);
+                joints[i].is_homed = true;  // mark homed after command sent
+            }
+            // if still not homed for any reason, not all joints done
+            if (!joints[i].is_homed) {
+                allHomed = false;
+            }
+        }
+    }
+
+    system_homed = allHomed;
+}
+
+/*
+ * Check if the arm has been homed (home position established).
+ */
+bool isHomed() {
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        if (joints[i].use_onboard_encoder) {
+            if (!joints[i].is_homed) {
+                return false;  // at least one joint still needs homing
+            }
+        }
+    }
+    return system_homed;  // all onboard encoder joints are homed
+}
+
+/*
+ * Polls whether the homing sequence is complete by checking two conditions:
+ *   1. system_homed flag is set (all homing commands have been sent)
+ *   2. All homed joints are within position tolerance of their home_pos
+ *      according to the latest ODrive position feedback.
+ * Returns true only when all joints have reached home within tolerance.
+ */
+bool verifyHoming() {
+    if (!system_homed) {
+        return false;
+    }
+
+    const float HOME_TOLERANCE_TURNS = 0.01f;  // adjust to your mechanical tolerance
+
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        if (joints[i].use_onboard_encoder && joints[i].is_homed) {
+            float currentPos = joints[i].user_data->last_feedback.Pos_Estimate;
+            float homePos    = joints[i].home_pos;
+            float err        = currentPos - homePos;
+            if (err < 0) err = -err;  // abs without including <cmath>
+
+            if (err > HOME_TOLERANCE_TURNS) {
+                return false;  // this joint hasn't settled yet
+            }
+        }
+    }
+
+    return true;  // all joints within tolerance
 }

@@ -7,6 +7,7 @@
 
 #define INACTIVE_CHANNEL 255
 #define NUM_JOINTS 7
+#define ODRIVE_FULL
 
 // Stores hardware mapping for one joint
 
@@ -16,7 +17,7 @@ struct Joint {
     ODriveUserData* user_data;      // null if no ODrive on this joint
     uint8_t         sensor_channel;  // I2C mux channel — INACTIVE_CHANNEL if not used (i.e joint uses odrive)
     float           max_torque;     // safety limit (Nm)
-    float           home_angle;     // home position (deg)
+    float           home_pos;     // home position (turns)
     bool            use_onboard_encoder; // true = read pos from ODrive, not AS5600
     const char*     label;          // debug name
 
@@ -26,6 +27,8 @@ struct Joint {
     float           velocity;        // latest velocity estimate from odrive 
     bool            is_homed;       // joint homing status
     float           target_torque;  // commanded torque target (Nm)
+    float           max_position;   // 
+    float           min_position;    // 
 };
 
 // Initialize all joints with default mapping
@@ -39,5 +42,11 @@ void readJointAngles();
 
 // Print joint status
 void printJointStatus();
+
+void startHoming();
+
+bool isHomed();
+
+bool verifyHoming();
 
 #endif // JOINT_H

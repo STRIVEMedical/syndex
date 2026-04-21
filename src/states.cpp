@@ -353,31 +353,9 @@ bool errorCheck(){
     return currError != NO_ERROR;
 }
 
-/*
- * Check if the arm has been homed (home position established).
- * TODO: Implement proper homing verification based on joint state.
- */
-bool isHomed() {
-    return true;  // Stub: return true for now
-}
 
-/*
- * Command the arm to move to the home position.
- * Sends homing command to all joints once via static flag.
- * TODO: Implement proper homing sequence.
- */
-void startHoming() {
-    // Stub: placeholder for homing command logic
-}
 
-/*
- * Poll the homing process to check if complete.
- * Returns true when homing is finished, false while still homing.
- * TODO: Implement proper homing completion detection.
- */
-bool verifyHoming() {
-    return true;  // Stub: return true for now (homing instant)
-}
+
 
 /*
  * Transmits a specific error message over Serial based on the current error code.
@@ -478,12 +456,18 @@ void stateUpdate()
     // startHoming() sends command once via static flag.
     // verifyHoming() polls until complete, then transition to READY.
     case HOMING:
-        startHoming();          // send homing command once
-        if (verifyHoming()) {   // poll until homing complete
+    {
+        static bool homingStarted = false;
+        if (!homingStarted) {
+            startHoming();       // send position commands once
+            homingStarted = true;
+        }
+        if (verifyHoming()) {    // poll each loop until joints settle
+            homingStarted = false;  // reset for next time (e.g. after error recovery)
             currState = READY;
         }
         break;
-
+    }
     // Normal operating state — admittance control always running.
     // data LED turns on once on entry via static flag.
     case READY:
