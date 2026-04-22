@@ -2,6 +2,7 @@
 #include <vector>
 #include <cstring>
 #include <cmath>
+#include "buttons.h"
 #include "USB.h"
 
 // File-local helpers used only inside the USB module.
@@ -405,7 +406,18 @@ static void handleSetJointTargets(const setJointTargetsPayload& payload) {
 static void handleRequestTelem() {
   // TODO: Send current telemetry data
   // For now, send ACK
-  sendCmdAck();
+  
+ //sendCmdAck();
+
+ telemJointDataPayload payload = {};
+
+  for (int i = 0; i < NUM_JOINTS; i++) {
+    buildTelemJointPayload(payload, i, joints[i].angle, joints[i].velocity);
+  }
+
+  payload.triggerPressed = (getTriggerDepth(&buttonPins::triggerInput) > 0.01f) ? 1 : 0;
+
+  sendTelemJointData(payload);
 }
 
 static void handleStartHoming() {

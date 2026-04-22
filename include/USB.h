@@ -80,6 +80,7 @@ struct telemStatusPayload {
 
 struct telemJointDataPayload {
   jointData joints[7];
+   uint8_t triggerPressed;
 };
 
 //Packet Definitions
