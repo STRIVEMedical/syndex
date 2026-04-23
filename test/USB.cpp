@@ -4,6 +4,7 @@
 #include <cmath>
 #include "buttons.h"
 #include "USB.h"
+#include "joint.h"
 
 // File-local helpers used only inside the USB module.
 static bool getNextPacket(packet& outPacket);
