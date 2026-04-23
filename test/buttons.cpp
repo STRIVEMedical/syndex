@@ -9,80 +9,50 @@ namespace buttonPins {
     button_t triggerInput = {40, INPUT, HIGH, HIGH};
 }
 
-void buttonInit(button_t* b) {
-    pinMode(b->pin, b->io);
-    b->buttonState = digitalRead(b->pin);
-    b->lastButtonState = b->buttonState;
-}
+struct DebouncedButton {
+    int lastReading;
+    int stableState;
+    unsigned long lastDebounceTime;
+    const unsigned long debounceDelay = 50;
+};
 
-// not used later in the code
-void buttonUpdate(button_t* b) {
-    b->lastButtonState = b->buttonState;
-    b->buttonState = digitalRead(b->pin);
+static DebouncedButton dbPower = {HIGH, HIGH, 0};
+static DebouncedButton dbCycle = {HIGH, HIGH, 0};
+
+static int pollEdge(button_t* b, DebouncedButton& db) {
+    int reading = digitalRead(b->pin);
+    unsigned long now = millis();
+    if (reading != db.lastReading) {
+        db.lastDebounceTime = now;
+    }
+    db.lastReading = reading;
+    if ((now - db.lastDebounceTime) > db.debounceDelay) {
+        if (reading != db.stableState) {
+            db.stableState = reading;
+            return (db.stableState == LOW) ? 1 : -1;
+        }
+    }
+    return 0;
 }
 
 void Buttons::setup() {
-    analogReadResolution(12); // trigger reports values in 0-4095 range
-    buttonInit(&buttonPins::powerButton);
-    buttonInit(&buttonPins::triggerInput);
-    buttonInit(&buttonPins::toolSelect);
-};
 
-void ToolCycleButton(button_t* b) {
-    static int lastReading = HIGH;
-    static int stableState = HIGH;
-    static unsigned long lastDebounceTime = 0;
-    const unsigned long debounceDelay = 50;
+    analogReadResolution(12);
+    pinMode(buttonPins::powerButton.pin, buttonPins::powerButton.io);
+    pinMode(buttonPins::toolSelect.pin, buttonPins::toolSelect.io);
+    pinMode(buttonPins::triggerInput.pin, buttonPins::triggerInput.io);
+    dbPower.lastReading = dbPower.stableState = digitalRead(buttonPins::powerButton.pin);
+    dbCycle.lastReading = dbCycle.stableState = digitalRead(buttonPins::toolSelect.pin);
 
-    int reading = digitalRead(b->pin);
-
-    if (reading != lastReading) {
-        lastDebounceTime = millis();
-    }
-
-    if ((millis() - lastDebounceTime) > debounceDelay) {
-        if (reading != stableState) {
-            stableState = reading;
-
-            if (stableState == LOW) {
-                Serial.println("Cycle button Pressed");
-            } else {
-                Serial.println("Cycle button Released");
-            }
-        }
-    }
-
-    lastReading = reading;
 }
 
-void testPowerButton(button_t* b) {
-    static int lastReading = HIGH;
-    static int stableState = HIGH;
-    static unsigned long lastDebounceTime = 0;
-    const unsigned long debounceDelay = 5;
-
-    int reading = digitalRead(b->pin);
-
-    if (reading != lastReading) {
-        lastDebounceTime = millis();
-    }
-
-    if ((millis() - lastDebounceTime) > debounceDelay) {
-        if (reading != stableState) {
-            stableState = reading;
-
-            if (stableState == LOW) {
-                Serial.println("Power button Released");
-            } else {
-                Serial.println("Power button Pressed");
-            }
-        }
-    }
-
-    lastReading = reading;
+bool powerButtonWasPressed() {
+    return pollEdge(&buttonPins::powerButton, dbPower) == 1;
 }
 
-/* ========== TRIGGER CODE ========== */
+bool toolSelectWasPressed() {
+    return pollEdge(&buttonPins::toolSelect, dbCycle) == 1;
+}
 
 float getTriggerDepth(button_t* b) {
     int rawValue = constrain(analogRead(b->pin), TRIGGER_MIN_ADC, TRIGGER_MAX_ADC);
@@ -90,15 +60,10 @@ float getTriggerDepth(button_t* b) {
 }
 
 void triggerPulled(button_t* b) {
-
     static bool wasPressed = false;
-
     float depth = getTriggerDepth(b);
-
     if (depth > 0.01f) {
         if (!wasPressed) {
-            //Serial.print("Trigger depth: ");
-            //Serial.println(depth);
             Serial.println("Trigger Pressed");
             wasPressed = true;
         }

@@ -396,13 +396,28 @@ void sendStateErrorLog() {
  *   Any state   --> ERROR_STATE (fault detected)
  *   ERROR_STATE --> BOOTUP      (operator acknowledges and presses powerButton)
 */
-void stateUpdate()
-{
+void stateUpdate() {
+
+    bool pwrPressed = powerButtonWasPressed();
+
+    if(pwrPressed && (currState != BOOTUP && currState != ERROR_STATE && currState != POWERINGOFF) {
+        
+        currState = POWERINGOFF;
+        return;
+    }
+
   switch (currState) {
     // Verify all hardware before allowing any operation.
     // Success: power LED on, transition to IDLE.
     // Failure: transition to ERROR_STATE.
     case BOOTUP:
+
+        if(!pwrPressed){
+
+            break;
+
+        }
+
         if (verifyODrive() && verifyI2C() && verifyLED()) {
             ONToggleLED(&Led::powerLed);   // power LED on = system alive
             OFFToggleLED(&Led::errorLed);  // ensure error LED is off
@@ -508,8 +523,11 @@ void stateUpdate()
         turnOnErrorLED();       // alert operator visually
         sendStateErrorLog();       // report specific fault over Serial
         // Wait for operator acknowledgement before attempting recovery
-        if (digitalRead(buttonPins::powerButton.pin) == LOW) {
-                errorRecovery();    // clear error and restart from BOOTUP
+        //if (digitalRead(buttonPins::powerButton.pin) == LOW) {
+          //      errorRecovery();    // clear error and restart from BOOTUP
+        //}
+        if(pwrPressed){
+            errorRecovery();    // clear error and restart from BOOTUP
         }
         break;
 
