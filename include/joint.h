@@ -7,7 +7,6 @@
 
 #define INACTIVE_CHANNEL 255
 #define NUM_JOINTS 7
-#define ODRIVE_FULL
 
 // Stores hardware mapping for one joint
 

@@ -1,4 +1,3 @@
-
 #include "states.h"
 #include "odrive.h"
 #include <cmath>
@@ -14,6 +13,7 @@
 extern Joint joints[NUM_JOINTS];
 #include "admittance_controller.h"
 #include "errors.h"
+
 // Test function: command a fixed velocity to a joint for debugging
 void testSetJointVelocity(int jointIdx, float velocity) {
     if (jointIdx < 0 || jointIdx >= NUM_JOINTS) {
@@ -39,7 +39,7 @@ state_e currState = BOOTUP;
 errorCode_e currError = NO_ERROR;
 
 // Telemetry pacing to avoid saturating the USB receive queue on host.
-static const uint32_t JOINT_TELEM_INTERVAL_MS = 5; 
+static const uint32_t JOINT_TELEM_INTERVAL_MS = 5;
 static const uint32_t STATUS_TELEM_INTERVAL_MS = 100; // 10 Hz
 
 /*
@@ -55,9 +55,7 @@ bool verifyODrive(){
     }
 
     bool odrivesHealthy = true;
-#ifdef ODRIVE_FULL
     odrivesHealthy &= printOdriveError(&odrv0, 0);
-#endif
     odrivesHealthy &= printOdriveError(&odrv1, 1);
     odrivesHealthy &= printOdriveError(&odrv2, 2);
 
@@ -68,6 +66,7 @@ bool verifyODrive(){
 
     return true;
 }
+
 /*
  * Verifies I2C setup and external encoder presence.
  * Checks mux ACK and ensures the expected number of active external encoder
@@ -137,21 +136,17 @@ bool verifyI2C(){
  * Returns true if all three LEDs respond correctly, false if any fail.
  */
 bool verifyLED(){
-    // Initialize all LED pins as OUTPUT
     Led::setup();
-    // Test power LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::powerLed);
     if (digitalRead(Led::powerLed.pin) != HIGH) {
         setError(LED_ERROR);
         return false;
     }
-    // Test data LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::dataLed);
     if (digitalRead(Led::dataLed.pin) != HIGH) {
         setError(LED_ERROR);
         return false;
     }
-    // Test error LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::errorLed);
     if (digitalRead(Led::errorLed.pin) != HIGH) {
         setError(LED_ERROR);
@@ -162,29 +157,24 @@ bool verifyLED(){
 }
 
 /*
-* Verifies USB serial connection is open and host is actively connected.
-* Returns true if a ping command has been received from the host,
-* indicating the host PC is actively communicating with the device.
-*/
+ * Verifies USB serial connection is open and host is actively connected.
+ * Returns true if a ping command has been received from the host,
+ * indicating the host PC is actively communicating with the device.
+ */
 bool verifyUSB(){
-    return pingReceived;  // Check if ping was received from host
+    return pingReceived;
 }
 
-//Checks whether the ODrive comms are online
+// Checks whether the ODrive comms are online
 bool verifyODriveComms(){
-    // Check all ODrives are still sending heartbeats over CAN
     if (
-#ifdef ODRIVE_FULL
         !odrv0_user_data.received_heartbeat ||
-#endif
         !odrv1_user_data.received_heartbeat ||
         !odrv2_user_data.received_heartbeat) {
         setError(ODRIVE_ERROR);
-        return false;       // An ODrive stopped responding
+        return false;
     }
-    else {
-        return true;
-    }
+    return true;
 }
 
 /*
@@ -195,17 +185,14 @@ bool verifyODriveComms(){
  */
 bool allConnectionsReady()
 {
-    // Check USB connection to host PC
     if (!verifyUSB()) {
         setError(CONNECTION_ERROR);
         return false;
     }
-    // Check ODrive CAN heartbeats
     if (!verifyODriveComms()) {
         setError(ODRIVE_ERROR);
         return false;
     }
-    // Checks all 7 I2C encoders
     if (!verifyI2C()) {
         setError(I2C_ERROR);
         return false;
@@ -237,27 +224,21 @@ bool pollCmdPing() {
  */
 void enableI2CPacketSend()
 {
-// payload struct to hold angle and velocity data for all joints
     telemJointDataPayload data;
 
     for (int i = 0; i < NUM_JOINTS; i++) {
         Joint* j = getJoint(i);
 
-        // check if joint ID is valid
         if (j == nullptr) {
             setError(I2C_ERROR);
             sendErrorMessage("I2C error: invalid joint pointer");
-
             currState = ERROR_STATE;
-            return; // exit immediately — invalid joint
+            return;
         }
 
-        // External encoder joints use raw AS5600 values; 0xFFFF indicates read failure.
         if (!j->use_onboard_encoder && j->rawValue == 0xFFFF) {
             setError(I2C_ERROR);
-            // notify host PC that an encoder failure occurred
             sendErrorMessage("I2C error: external encoder read failed");
-            // safe the system and exit function immediately
             currState = ERROR_STATE;
             return;
         }
@@ -272,52 +253,39 @@ void enableI2CPacketSend()
  * status to host PC as a TELEM_STATUS packet.
  * If any ODrive stops sending heartbeats, sends ERROR_MESSAGE
  * to host and transitions to ERROR_STATE immediately.
- * Called every loop cycle in READY state.
- * TODO: fill status payload fields once confirmed with firmware team.
  */
 void enableODrivePacketSend()
 {
-    // payload struct to hold ODrive status data
     telemStatusPayload status{};
 
-    // check ODrive heartbeats are still active over CAN
     if (
-#ifdef ODRIVE_FULL
         !odrv0_user_data.received_heartbeat ||
-#endif
         !odrv1_user_data.received_heartbeat ||
         !odrv2_user_data.received_heartbeat) {
         setError(ODRIVE_ERROR);
-        // notify host PC that ODrive communication failed
         packet errPacket(ERROR_MESSAGE);
         std::vector<uint8_t> errBuffer = errPacket.serialize();
         Serial.write(errBuffer.data(), errBuffer.size());
-        // safe the system and exit function immediately
         currState = ERROR_STATE;
         return;
     }
 
-
     // TODO: confirm what values armStatus and odriveFaults should hold
-    // status.armStatus = 
-    // status.odriveFaults = 
+    // status.armStatus =
+    // status.odriveFaults =
 
     sendTelemStatus(status);
 }
 
 /*
  * Commands all ODrive controllers to idle state before power is cut.
- * Graceful shutdown prevents motors from dropping torque suddenly,
- * which could cause the arm to fall or jerk unexpectedly.
  */
-
 void stopODrives(){
     emergencyStop();
 }
 
 /*
  * Turns off all LED indicators during shutdown sequence.
- * Called after ODrives are powered off as part of orderly shutdown.
  */
 void powerOffPeripherals(){
     OFFToggleLED(&Led::powerLed);
@@ -325,11 +293,9 @@ void powerOffPeripherals(){
     OFFToggleLED(&Led::errorLed);
 }
 
-
 /*
-* Turns on the error LED to visually alert the operator of a fault.
-* Error LED remains on until errorRecovery() is called.
-*/
+ * Turns on the error LED to visually alert the operator of a fault.
+ */
 void turnOnErrorLED(){
     ONToggleLED(&Led::errorLed);
 }
@@ -338,18 +304,15 @@ void turnOnErrorLED(){
  * Resets system state after operator acknowledges and resolves the fault.
  * Clears the error flag, turns off error LED, and returns to BOOTUP
  * to rerun all hardware verification before resuming operation.
- * Only called after operator presses powerButton to acknowledge fault.
  */
 void errorRecovery(){
-    clearError();                  // reset currError to NO_ERROR
-    OFFToggleLED(&Led::errorLed);  // turn off error LED
-    currState = BOOTUP;            // restart verification from beginning
+    clearError();
+    OFFToggleLED(&Led::errorLed);
+    currState = BOOTUP;
 }
 
 /*
  * Stores the current error code when a fault is detected.
- * Called immediately before transitioning to ERROR_STATE so
- * sendStateErrorLog() can report the specific cause of the fault.
  */
 void setError(errorCode_e err) {
     currError = err;
@@ -357,7 +320,6 @@ void setError(errorCode_e err) {
 
 /*
  * Returns the current error code.
- * Useful for external files or PC requests to query what went wrong.
  */
 errorCode_e getError() {
     return currError;
@@ -365,7 +327,6 @@ errorCode_e getError() {
 
 /*
  * Resets the error code back to NO_ERROR.
- * Called inside errorRecovery() after operator acknowledges the fault.
  */
 void clearError(){
     currError = NO_ERROR;
@@ -373,51 +334,33 @@ void clearError(){
 
 /*
  * Returns true if any error is currently active, false if system is healthy.
- * Checks whether currError is anything other than NO_ERROR.
  */
 bool errorCheck(){
     return currError != NO_ERROR;
 }
 
-
-
-
-
 /*
  * Transmits a specific error message over Serial based on the current error code.
- * Called in ERROR_STATE to report the fault to the operator or host PC.
- * Each error type has a distinct message for easy fault diagnosis.
  */
 void sendStateErrorLog() {
     switch (currError)
     {
-    // ODrive hardware or CAN communication failure
     case ODRIVE_ERROR:
         SerialUSB1.println("ERROR: ODRIVE FAILURE");
         break;
-    
-    // I2C bus or encoder communication failure
     case I2C_ERROR:
         SerialUSB1.println("ERROR: I2C FAILURE");
         break;
-
-    // LED pin not responding during bootup verification
     case LED_ERROR:
         SerialUSB1.println("ERROR: LED FAILURE");
         break;
-
-    // USB or host PC connection failure
     case CONNECTION_ERROR:
         SerialUSB1.println("ERROR: CONNECTION FAILURE");
         break;
-
-    // No error currently active — nothing to report
     case NO_ERROR:
         break;
-
-    // Unknown or unhandled error type
     default:
-    SerialUSB1.println("ERROR: UNKNOWN FAILURE");
+        SerialUSB1.println("ERROR: UNKNOWN FAILURE");
         break;
     }
 }
@@ -434,8 +377,8 @@ void sendStateErrorLog() {
  *   HOMING      --> READY       (homing sequence complete)
  *   READY       --> POWERINGOFF (shutdown commanded)
  *   Any state   --> ERROR_STATE (fault detected)
- *   ERROR_STATE --> ERROR_STATE  (latched fault until device reset)
-*/
+ *   ERROR_STATE --> ERROR_STATE (latched fault until device reset)
+ */
 void stateUpdate()
 {
   switch (currState) {
@@ -443,7 +386,6 @@ void stateUpdate()
     // Success: power LED on, transition to IDLE.
     // Failure: transition to ERROR_STATE.
     case BOOTUP:
-        // DEBUG: Command joint 0 to move at 2 turns/s for test
         if (verifyODrive() && verifyI2C() && verifyLED()) {
             ONToggleLED(&Led::powerLed);   // power LED on = system alive
             OFFToggleLED(&Led::errorLed);  // ensure error LED is off
@@ -452,13 +394,11 @@ void stateUpdate()
         else {
             currState = ERROR_STATE;
         }
-
         break;
 
     // Wait for CMD_PING from host PC.
     // PING received: transition to CONNECTED. (Pong is sent in handlePing)
     case IDLE:
-
         if (pollCmdPing()) {
             currState = CONNECTED;
         }
@@ -471,13 +411,13 @@ void stateUpdate()
     case CONNECTED:
         if (!allConnectionsReady()) {
             currState = ERROR_STATE;
-            break;  // stop here, don't continue to homing check
+            break;
         }
         else if (isHomed()) {
-            currState = READY;  // skip homing, arm position is known
+            currState = READY;
         }
         else {
-            currState = HOMING; // need to establish arm home position
+            currState = HOMING;
         }
         break;
 
@@ -494,6 +434,7 @@ void stateUpdate()
         }
         break;
     }
+
     // Normal operating state — admittance control always running.
     // data LED turns on once on entry via static flag.
     // Sub-states: ADMITTANCE (normal), MOVING_TO_HOME (position control), RESTORING (back to velocity).
@@ -507,7 +448,7 @@ void stateUpdate()
         static uint32_t lastStatusTelemMs = 0;
         static uint32_t lastAdmittanceUs = 0;
         static uint32_t lastOdriveErrorCheckMs = 0;
-        static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 500;
+        static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 10000;
 
         if (!enteredReady) {
             ONToggleLED(&Led::dataLed);
@@ -523,59 +464,89 @@ void stateUpdate()
             readyTelemInit = true;
         }
 
-        // H key: drive arm to home using a velocity P controller.
-        // Stays in velocity mode the whole time — no position gain config required.
-        // vel_cmd = HOME_KP * (home_pos - pos_estimate), clamped to HOME_MAX_VEL.
-        // static const float HOME_KP       = 8.0f;   // turns/s per turn of error
-        // static const float HOME_MAX_VEL  = 11.0f;   // max speed during return (turns/s)
-        static const float HOME_TOL      = 0.02f;  // arrival tolerance (turns)
+        static const float HOME_TOL = 0.02f;              // arrival tolerance (turns)
         static uint32_t moveToHomeStartMs = 0;
         static const uint32_t MOVE_TO_HOME_TIMEOUT_MS = 15000;
 
+        // --- MOVING_TO_HOME entry: switch to position control and re-arm drives ---
         if (moveToHomePending && subState == ADMITTANCE) {
             moveToHomePending = false;
-            SerialUSB1.println("[READY] Moving to home via velocity P control.");
+            SerialUSB1.println("[READY] Moving to home via position control.");
+
+            for (int i = 0; i < NUM_JOINTS; i++) {
+                if (!joints[i].use_onboard_encoder || joints[i].odrive == nullptr) continue;
+
+                // 1. Set position control mode
+                joints[i].odrive->setControllerMode(
+                    ODriveControlMode::CONTROL_MODE_POSITION_CONTROL,
+                    ODriveInputMode::INPUT_MODE_PASSTHROUGH);
+                joints[i].odrive->setPosGain(30.0f);
+                delay(20);
+                pumpEvents(can_intf);
+
+                // 2. Re-arm into closed loop — setControllerMode drops the drive out of
+                //    closed-loop, so we must explicitly re-enter it before sending setpoints.
+                joints[i].odrive->clearErrors();
+                delay(20);
+                pumpEvents(can_intf);
+                joints[i].odrive->setState(ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL);
+                delay(50);   // give the drive time to fully transition before first setpoint
+                pumpEvents(can_intf);
+
+                SerialUSB1.print("[READY] Joint "); SerialUSB1.print(i);
+                SerialUSB1.print(" → position control, pos_gain=30, armed");
+                // Print errors once here so we can confirm clean state on entry
+                bool ok = printOdriveError(joints[i].odrive, i);
+                SerialUSB1.println(ok ? " [OK]" : " [ERROR - check above]");
+            }
+
+            delay(50);
+            pumpEvents(can_intf);
             moveToHomeStartMs = millis();
             subState = MOVING_TO_HOME;
         }
 
+        // --- MOVING_TO_HOME loop: send position setpoints, log progress at 2 Hz ---
         if (subState == MOVING_TO_HOME) {
+            static uint32_t lastHomingLogMs = 0;
+            const uint32_t HOMING_LOG_INTERVAL_MS = 500;
+
             bool allArrived = true;
+            bool anyMoving  = false;
+            uint32_t nowMs  = millis();
+            bool doLog      = (nowMs - lastHomingLogMs) >= HOMING_LOG_INTERVAL_MS;
+
             for (int i = 0; i < NUM_JOINTS; i++) {
-                if (!joints[i].use_onboard_encoder || !joints[i].is_homed || joints[i].odrive == nullptr) {
-                    continue;
-                }
-                // Switch to position control mode if not already
-                if (joints[i].user_data->last_controller_mode.Control_Mode != ODriveControlMode::CONTROL_MODE_POSITION_CONTROL) {
-                    enable_position_control(*joints[i].odrive, *joints[i].user_data, i);
-                }
-                float pos = joints[i].user_data->last_feedback.Pos_Estimate;
+                if (!joints[i].use_onboard_encoder || joints[i].odrive == nullptr) continue;
+
+                float pos = joints[i].user_data
+                    ? joints[i].user_data->last_feedback.Pos_Estimate
+                    : -999.0f;
                 float err = joints[i].home_pos - pos;
-                SerialUSB1.print("[HOMING][POS] Joint ");
-                SerialUSB1.print(i);
-                SerialUSB1.print(": pos=");
-                SerialUSB1.print(pos, 4);
-                SerialUSB1.print(", home=");
-                SerialUSB1.print(joints[i].home_pos, 4);
-                SerialUSB1.print(", err=");
-                SerialUSB1.print(err, 4);
-                        // Before switching to position mode and calling setPosition
-                joints[i].odrive->setPosGain(20.0f);
-                joints[i].odrive->setPosition(joints[i].home_pos, 0.0f, 0.0f); // set position setpoint
+
+                joints[i].odrive->setPosition(joints[i].home_pos, 0.0f, 0.0f);
+                pumpEvents(can_intf);
+
                 if (fabsf(err) > HOME_TOL) {
                     allArrived = false;
-                    SerialUSB1.println(", moving to home...");
-                } else {
-                    SerialUSB1.println(", within tolerance, holding position.");
+                    anyMoving  = true;
+                }
+
+                if (doLog) {
+                    SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
+                    SerialUSB1.print("  pos="); SerialUSB1.print(pos, 4);
+                    SerialUSB1.print("  err="); SerialUSB1.print(err, 4);
+                    SerialUSB1.println(fabsf(err) <= HOME_TOL ? "  [AT HOME]" : "  [moving]");
                 }
             }
 
+            if (doLog) lastHomingLogMs = nowMs;
+
             if (allArrived) {
-                SerialUSB1.println("[READY] Home reached.");
+                SerialUSB1.println("[READY] All joints reached home.");
                 subState = RESTORING;
-            } else if ((millis() - moveToHomeStartMs) > MOVE_TO_HOME_TIMEOUT_MS) {
+            } else if ((nowMs - moveToHomeStartMs) > MOVE_TO_HOME_TIMEOUT_MS) {
                 SerialUSB1.println("[READY] Move-to-home timed out — stopping.");
-                // Zero out all ODrive velocity commands before returning to admittance.
                 for (int i = 0; i < NUM_JOINTS; i++) {
                     if (joints[i].use_onboard_encoder && joints[i].odrive != nullptr)
                         joints[i].odrive->setVelocity(0.0f, 0.0f);
@@ -584,8 +555,9 @@ void stateUpdate()
             }
         }
 
+        // --- RESTORING: switch back to velocity/admittance mode ---
         if (subState == RESTORING) {
-            // Restore velocity mode for admittance after homing
+            SerialUSB1.println("[READY] Restoring velocity (admittance) mode.");
             for (int i = 0; i < NUM_JOINTS; i++) {
                 if (joints[i].use_onboard_encoder && joints[i].odrive != nullptr) {
                     enable_velocity_control(*joints[i].odrive, *joints[i].user_data, i);
@@ -618,14 +590,9 @@ void stateUpdate()
 
         // Periodically read ODrive error registers so faults show up in serial.
         if ((now - lastOdriveErrorCheckMs) >= ODRIVE_ERROR_CHECK_INTERVAL_MS) {
-#ifndef ODRIVE_FULL
-            printOdriveError(&odrv1, 1);
-            printOdriveError(&odrv2, 2);
-#else
             printOdriveError(&odrv0, 0);
             printOdriveError(&odrv1, 1);
             printOdriveError(&odrv2, 2);
-#endif
             lastOdriveErrorCheckMs = now;
         }
         break;
@@ -634,8 +601,8 @@ void stateUpdate()
     // Controlled shutdown sequence.
     // Motors idled gracefully before power is cut.
     case POWERINGOFF:
-        stopODrives();      // gracefully idle all ODrive motors
-        powerOffPeripherals();  // turn off all LEDs
+        stopODrives();
+        powerOffPeripherals();
         break;
 
     // Safe all hardware immediately and report fault.
@@ -644,16 +611,15 @@ void stateUpdate()
     {
         static bool errorLatched = false;
         if (!errorLatched) {
-            stopODrives();          // emergency stop all motors once on entry
-            turnOnErrorLED();       // alert operator visually
-            sendStateErrorLog();    // report specific fault over Serial once
+            stopODrives();
+            turnOnErrorLED();
+            sendStateErrorLog();
             errorLatched = true;
         }
         break;
     }
 
     // Unknown or corrupted state — should never be reached.
-    // Immediately safe all hardware and transition to ERROR_STATE.
     default:
         stopODrives();
         turnOnErrorLED();

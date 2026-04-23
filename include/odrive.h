@@ -1,13 +1,6 @@
 #ifndef ODRIVE_H
 #define ODRIVE_H
 
-// ── ODrive hardware configuration ─────────────────────────────────────────
-// Uncomment ONE line to match currently connected ODrives.
-// When you have all three connected, switch to ODRIVE_FULL.
-// #define ODRIVE_FULL        // All three connected: nodes 0, 1, 2
-#define ODRIVE_TEST_1_2      // Partial test: nodes 1 and 2 only
-// ──────────────────────────────────────────────────────────────────────────
-
 #include <Arduino.h>
 #include "comms.h"
 

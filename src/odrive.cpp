@@ -12,7 +12,7 @@
 static const float TEST_VEL_GAIN = 0.001f;
 static const float TEST_VEL_INT_GAIN = 0.0f;
 static const float TEST_VEL_LIMIT_TURNS_PER_S = 50.0f;  // high limit — current_soft_max controls resistance, not this
-static const float TEST_CURRENT_SOFT_MAX_A = 1.0f;
+static const float TEST_CURRENT_SOFT_MAX_A = 6.0f;
 
 static const char* controlModeName(uint8_t mode) {
   switch (mode) {
@@ -271,20 +271,11 @@ void preInitOdriveCallbacks() {
 bool initMultiOdrives() {
   //comms verified in verifyOdrive
 
-#ifdef ODRIVE_FULL
   if (!initOdrive(odrv0, odrv0_user_data, 0)
     || !initOdrive(odrv1, odrv1_user_data, 1)
     || !initOdrive(odrv2, odrv2_user_data, 2)) {
     return false;
   }
-#else  // ODRIVE_TEST_1_2
-  if (!initOdrive(odrv0, odrv0_user_data, 0)
-    || !initOdrive(odrv1, odrv1_user_data, 1)
-    || !initOdrive(odrv2, odrv2_user_data, 2)) {
-    return false;
-  }
-#endif
-
 
   SerialUSB1.println("[ODRIVE] All nodes running");
   return true;

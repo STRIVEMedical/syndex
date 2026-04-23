@@ -38,13 +38,6 @@ void initJoints() {
         joints[i].target_torque = 0.0f;
     }
 
-#ifndef ODRIVE_FULL
-    // Disable joint 0 (ROTATE / odrv0) — not connected in test setup.
-    // Admittance controller already skips joints where odrive == nullptr.
-    joints[0].odrive = nullptr;
-    SerialUSB1.println("[CONFIG] ODRIVE_TEST_1_2: joint 0 (ROTATE) disabled");
-#endif
-
     SerialUSB1.println("Joints initialized with configured mapping");
 }
 
@@ -163,25 +156,25 @@ bool isHomed() {
  */
 void confirmHome() {
     for (int i = 0; i < NUM_JOINTS; i++) {
-        if (joints[i].use_onboard_encoder && joints[i].odrive != nullptr) {
-            // Switch to position control before setting absolute position
-            joints[i].odrive->setControllerMode(3, 1); // 3 = POSITION_CONTROL, 1 = PASSTHROUGH
-            joints[i].odrive->setAbsolutePosition(0.0f);
-            joints[i].is_homed = true;
-        }
+        if (!joints[i].use_onboard_encoder || joints[i].odrive == nullptr) continue;
+
+        joints[i].odrive->setAbsolutePosition(0.0f);
+        joints[i].is_homed = true;
     }
 
-    // setAbsolutePosition causes an instantaneous position jump in the ODrive's
-    // estimator, which trips the velocity limit and disarms the motor (disarm=0x8000).
-    // Re-enabling closed loop clears the disarm; restoring velocity control brings
-    // admittance mode back to its normal state.
     delay(50);
     pumpEvents(can_intf);
-#ifdef ODRIVE_FULL
-    enable_closed_loop(odrv0, odrv0_user_data, 0);
-#endif
-    enable_closed_loop(odrv1, odrv1_user_data, 1);
-    enable_closed_loop(odrv2, odrv2_user_data, 2);
+    // Re-arm all drives after setAbsolutePosition potentially tripped velocity limit
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        if (!joints[i].use_onboard_encoder || joints[i].odrive == nullptr) continue;
+        joints[i].odrive->clearErrors();
+        delay(20);
+        pumpEvents(can_intf);
+        joints[i].odrive->setState(ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL);
+        delay(20);
+        pumpEvents(can_intf);
+        SerialUSB1.print("[HOMING] Re-armed joint "); SerialUSB1.println(i);
+    }
 
     SerialUSB1.println("[HOMING] Home confirmed and latched — drives re-armed.");
 }
