@@ -42,6 +42,47 @@ errorCode_e currError = NO_ERROR;
 static const uint32_t JOINT_TELEM_INTERVAL_MS = 5;
 static const uint32_t STATUS_TELEM_INTERVAL_MS = 100; // 10 Hz
 
+// ── READY sub-state — file-scope so variables survive state re-entries ────────
+// Using file-scope (not static locals) means resetReadyState() can zero them on
+// every entry, preventing stale values if the system exits and re-enters READY.
+enum ReadySubState { ADMITTANCE, MOVING_TO_HOME, RESTORING };
+static ReadySubState readySubState          = ADMITTANCE;
+static bool          readyTelemInit         = false;
+static bool          enteredReady           = false;
+static uint32_t      lastJointTelemMs       = 0;
+static uint32_t      lastStatusTelemMs      = 0;
+static uint32_t      lastAdmittanceUs       = 0;
+static uint32_t      lastOdriveErrorCheckMs = 0;
+static uint32_t      moveToHomeStartMs      = 0;
+static uint32_t      lastHomingLogMs        = 0;
+
+static const float    HOME_TOL                    = 0.02f;
+static const uint32_t MOVE_TO_HOME_TIMEOUT_MS     = 15000;
+static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 10000;
+static const uint32_t HOMING_LOG_INTERVAL_MS      = 500;
+
+static void resetReadyState() {
+    readySubState          = ADMITTANCE;
+    readyTelemInit         = false;
+    enteredReady           = false;
+    lastJointTelemMs       = 0;
+    lastStatusTelemMs      = 0;
+    lastAdmittanceUs       = 0;
+    lastOdriveErrorCheckMs = 0;
+    moveToHomeStartMs      = 0;
+    lastHomingLogMs        = 0;
+}
+
+// ── HOMING timeout ────────────────────────────────────────────────────────────
+static uint32_t       homingEnteredMs    = 0;
+static bool           homingTimerStarted = false;
+static const uint32_t HOMING_TIMEOUT_MS = 300000UL; // 5-minute operator timeout
+
+static void resetHomingState() {
+    homingEnteredMs    = 0;
+    homingTimerStarted = false;
+}
+
 /*
  * Verifies ODrive system is initialized and all ODrives are online.
  * Initializes all ODrive instances and waits for heartbeats via initMultiOdrives().
@@ -308,6 +349,8 @@ void turnOnErrorLED(){
 void errorRecovery(){
     clearError();
     OFFToggleLED(&Led::errorLed);
+    resetReadyState();
+    resetHomingState();
     currState = BOOTUP;
 }
 
@@ -421,16 +464,31 @@ void stateUpdate()
         }
         break;
 
-    // Manual homing: arm is compliant (velocity/admittance mode).
+    // Manual homing: arm is compliant (velocity mode, soft gains).
     // Operator physically places the arm at the home pose, then sends
-    // CMD_CONFIRM_HOME from Unity. The flag is set by the USB handler,
-    // consumed here to latch the current encoder position as zero on all ODrives.
+    // CMD_CONFIRM_HOME from Unity. A 5-minute timeout transitions to ERROR_STATE
+    // if the operator does not confirm, preventing indefinite powered standby.
     case HOMING:
     {
+        if (!homingTimerStarted) {
+            homingEnteredMs    = millis();
+            homingTimerStarted = true;
+            SerialUSB1.println("[HOMING] Awaiting CMD_CONFIRM_HOME from operator (5-min timeout).");
+        }
+
         if (confirmHomePending) {
             confirmHomePending = false;
-            confirmHome();    // SetAbsolutePosition(0) on all ODrives, marks joints homed
+            confirmHome();
+            resetHomingState();
             currState = READY;
+            break;
+        }
+
+        if ((millis() - homingEnteredMs) >= HOMING_TIMEOUT_MS) {
+            SerialUSB1.println("[HOMING] Operator timeout — entering ERROR_STATE.");
+            setError(CONNECTION_ERROR);
+            resetHomingState();
+            currState = ERROR_STATE;
         }
         break;
     }
@@ -440,15 +498,9 @@ void stateUpdate()
     // Sub-states: ADMITTANCE (normal), MOVING_TO_HOME (position control), RESTORING (back to velocity).
     case READY:
     {
-        enum ReadySubState { ADMITTANCE, MOVING_TO_HOME, RESTORING };
-        static ReadySubState subState = ADMITTANCE;
-        static bool readyTelemInit = false;
-        static bool enteredReady = false;
-        static uint32_t lastJointTelemMs = 0;
-        static uint32_t lastStatusTelemMs = 0;
-        static uint32_t lastAdmittanceUs = 0;
-        static uint32_t lastOdriveErrorCheckMs = 0;
-        static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 10000;
+        // All sub-state variables are file-scope (declared above stateUpdate).
+        // resetReadyState() is called from errorRecovery() to ensure a clean
+        // entry every time READY is reached, even after error recovery.
 
         if (!enteredReady) {
             ONToggleLED(&Led::dataLed);
@@ -464,19 +516,16 @@ void stateUpdate()
             readyTelemInit = true;
         }
 
-        static const float HOME_TOL = 0.02f;              // arrival tolerance (turns)
-        static uint32_t moveToHomeStartMs = 0;
-        static const uint32_t MOVE_TO_HOME_TIMEOUT_MS = 15000;
-
-        // --- MOVING_TO_HOME entry: switch to position control and re-arm drives ---
-        if (moveToHomePending && subState == ADMITTANCE) {
+        // --- MOVING_TO_HOME entry: switch to position control ---
+        if (moveToHomePending && readySubState == ADMITTANCE) {
             moveToHomePending = false;
             SerialUSB1.println("[READY] Moving to home via position control.");
 
             for (int i = 0; i < NUM_JOINTS; i++) {
                 if (!joints[i].use_onboard_encoder || joints[i].odrive == nullptr) continue;
 
-                // 1. Set position control mode
+                // setControllerMode does NOT disarm the drive on ODrive v3.6+.
+                // The drive remains in closed-loop; no extra clearErrors/setState needed.
                 joints[i].odrive->setControllerMode(
                     ODriveControlMode::CONTROL_MODE_POSITION_CONTROL,
                     ODriveInputMode::INPUT_MODE_PASSTHROUGH);
@@ -484,18 +533,8 @@ void stateUpdate()
                 delay(20);
                 pumpEvents(can_intf);
 
-                // 2. Re-arm into closed loop — setControllerMode drops the drive out of
-                //    closed-loop, so we must explicitly re-enter it before sending setpoints.
-                joints[i].odrive->clearErrors();
-                delay(20);
-                pumpEvents(can_intf);
-                joints[i].odrive->setState(ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL);
-                delay(50);   // give the drive time to fully transition before first setpoint
-                pumpEvents(can_intf);
-
                 SerialUSB1.print("[READY] Joint "); SerialUSB1.print(i);
-                SerialUSB1.print(" → position control, pos_gain=30, armed");
-                // Print errors once here so we can confirm clean state on entry
+                SerialUSB1.print(" → position control, pos_gain=30");
                 bool ok = printOdriveError(joints[i].odrive, i);
                 SerialUSB1.println(ok ? " [OK]" : " [ERROR - check above]");
             }
@@ -503,14 +542,11 @@ void stateUpdate()
             delay(50);
             pumpEvents(can_intf);
             moveToHomeStartMs = millis();
-            subState = MOVING_TO_HOME;
+            readySubState = MOVING_TO_HOME;
         }
 
         // --- MOVING_TO_HOME loop: send position setpoints, log progress at 2 Hz ---
-        if (subState == MOVING_TO_HOME) {
-            static uint32_t lastHomingLogMs = 0;
-            const uint32_t HOMING_LOG_INTERVAL_MS = 500;
-
+        if (readySubState == MOVING_TO_HOME) {
             bool allArrived = true;
             bool anyMoving  = false;
             uint32_t nowMs  = millis();
@@ -544,19 +580,19 @@ void stateUpdate()
 
             if (allArrived) {
                 SerialUSB1.println("[READY] All joints reached home.");
-                subState = RESTORING;
+                readySubState = RESTORING;
             } else if ((nowMs - moveToHomeStartMs) > MOVE_TO_HOME_TIMEOUT_MS) {
                 SerialUSB1.println("[READY] Move-to-home timed out — stopping.");
                 for (int i = 0; i < NUM_JOINTS; i++) {
                     if (joints[i].use_onboard_encoder && joints[i].odrive != nullptr)
                         joints[i].odrive->setVelocity(0.0f, 0.0f);
                 }
-                subState = RESTORING;
+                readySubState = RESTORING;
             }
         }
 
         // --- RESTORING: switch back to velocity/admittance mode ---
-        if (subState == RESTORING) {
+        if (readySubState == RESTORING) {
             SerialUSB1.println("[READY] Restoring velocity (admittance) mode.");
             for (int i = 0; i < NUM_JOINTS; i++) {
                 if (joints[i].use_onboard_encoder && joints[i].odrive != nullptr) {
@@ -565,11 +601,11 @@ void stateUpdate()
             }
             resetAdmittanceController();
             lastAdmittanceUs = micros();
-            subState = ADMITTANCE;
+            readySubState = ADMITTANCE;
         }
 
         // Normal admittance loop — only runs when not in a move-to-home sequence.
-        if (subState == ADMITTANCE) {
+        if (readySubState == ADMITTANCE) {
             readJointAngles();
             uint32_t nowUs = micros();
             float dt = (nowUs - lastAdmittanceUs) * 1e-6f;

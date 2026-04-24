@@ -1,9 +1,9 @@
 #ifndef ADMITTANCE_H
 #define ADMITTANCE_H
 
-#define GEAR_RATIO  23.0 //23:1
-#define TORQUE_CONST 100.0 //change 
-
+// Gear ratio and motor Kt are defined in admittance_controller.cpp as
+// ADM_DEFAULT_RATIO and ADM_DEFAULT_KT. Verify both against hardware datasheets
+// before tuning the admittance gains.
 
 #include <Arduino.h>
 

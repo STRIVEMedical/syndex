@@ -150,31 +150,74 @@ bool isHomed() {
 
 
 /*
- * Latches the current encoder position as zero on all active ODrives, then marks
- * every ODrive-backed joint as homed. Call this once the operator has physically
- * placed the arm at the desired home pose and confirmed via CMD_CONFIRM_HOME.
+ * Latches the current encoder position as zero on all active ODrives and external
+ * encoders, then marks every ODrive-backed joint as homed.
+ *
+ * ODrive joints: each drive is idled before setAbsolutePosition() is called so
+ * that the position step does not cause a velocity spike in the closed-loop
+ * controller. Velocity control mode is set explicitly before re-entering
+ * closed-loop, regardless of what is stored in ODrive flash.
+ *
+ * External encoder joints: zeroOffset[] and multi-turn counters are reset to
+ * the current raw reading so computeAngle() returns 0 at the home pose.
  */
 void confirmHome() {
+    // ── Phase A: zero external encoder joints ────────────────────────────────
     for (int i = 0; i < NUM_JOINTS; i++) {
-        if (!joints[i].use_onboard_encoder || joints[i].odrive == nullptr) continue;
-
-        joints[i].odrive->setAbsolutePosition(0.0f);
-        joints[i].is_homed = true;
+        if (joints[i].use_onboard_encoder || joints[i].sensor_channel == INACTIVE_CHANNEL) continue;
+        tcaSelect(joints[i].sensor_channel);
+        delayMicroseconds(200);
+        uint16_t raw = readRawAS5600();
+        if (raw != 0xFFFF) {
+            uint8_t ch = joints[i].sensor_channel;
+            zeroOffset[ch] = raw * 360.0f / 4096.0f;
+            turns[ch]      = 0;
+            lastRaw[ch]    = raw;
+            SerialUSB1.print("[HOMING] External enc ch");
+            SerialUSB1.print(ch);
+            SerialUSB1.print(" zeroed raw=");
+            SerialUSB1.println(raw);
+        } else {
+            SerialUSB1.print("[HOMING] WARNING: AS5600 read failed on ch");
+            SerialUSB1.println(joints[i].sensor_channel);
+        }
     }
 
-    delay(50);
-    pumpEvents(can_intf);
-    // Re-arm all drives after setAbsolutePosition potentially tripped velocity limit
+    // Phase B: for each ODrive joint — idle → set position → re-arm in velocity mode
     for (int i = 0; i < NUM_JOINTS; i++) {
         if (!joints[i].use_onboard_encoder || joints[i].odrive == nullptr) continue;
+
+        // 1. idle the drive before touching pos_estimate.
+        //    This prevents the velocity spike that setAbsolutePosition causes
+        //    when called during closed-loop control.
+        joints[i].odrive->setState(ODriveAxisState::AXIS_STATE_IDLE);
+        delay(50);
+        pumpEvents(can_intf);
+
+        // 2. Set encoder reference to 0 while drive is idle (no control loop = no spike).
+        joints[i].odrive->setAbsolutePosition(0.0f);
+        delay(20);
+        pumpEvents(can_intf);
+
+        // 3. Set velocity control mode and gains BEFORE re-entering closed loop.
+        //    This ensures the drive enters closed loop in the correct mode
+        //    regardless of what is stored in ODrive flash.
+        enable_velocity_control(*joints[i].odrive, *joints[i].user_data, i);
+
+        // 4. Clear any errors accumulated during the idle/position-set sequence.
         joints[i].odrive->clearErrors();
         delay(20);
         pumpEvents(can_intf);
+
+        // 5. Re-enter closed-loop control.
         joints[i].odrive->setState(ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL);
-        delay(20);
+        delay(50);
         pumpEvents(can_intf);
-        SerialUSB1.print("[HOMING] Re-armed joint "); SerialUSB1.println(i);
+
+        joints[i].is_homed = true;
+        SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
+        SerialUSB1.println(" homed and re-armed in velocity mode.");
     }
 
-    SerialUSB1.println("[HOMING] Home confirmed and latched — drives re-armed.");
+    SerialUSB1.println("[HOMING] All joints homed.");
 }
