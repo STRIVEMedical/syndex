@@ -15,9 +15,12 @@ struct Joint {
     ODriveCAN*      odrive;         // null if no ODrive on this joint
     ODriveUserData* user_data;      // null if no ODrive on this joint
     uint8_t         sensor_channel;  // I2C mux channel — INACTIVE_CHANNEL if not used (i.e joint uses odrive)
-    float           max_torque;     // safety limit (Nm)
-    float           home_pos;     // home position (turns)
+    float           max_torque;       // safety limit (Nm)
+    float           home_pos;         // home position (turns)
     bool            use_onboard_encoder; // true = read pos from ODrive, not AS5600
+    float           home_vel_gain;    // velocity P-gain for position-control homing move
+    float           home_vel_int_gain; // velocity I-gain for position-control homing move
+    float           home_vel_dir;     // direction of homing approach: +1.0 or -1.0
     const char*     label;          // debug name
 
     // Runtime state

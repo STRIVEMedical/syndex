@@ -1,4 +1,3 @@
-
 // Key Concepts:
 // - ODrive operates in different control modes (position/velocity/torque)
 // - This implementation focuses on torque control for gravity compensation
@@ -212,15 +211,19 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
   delay(20);
   pumpEvents(can_intf);
 
+  // Apply soft gains and velocity control mode BEFORE entering closed loop.
+  // If gains are set after setState(CLOSED_LOOP), the drive briefly runs with
+  // whatever high gains are stored in flash, which can immediately trip an
+  // encoder/velocity error before our safe values take effect.
+  SerialUSB1.print("[ODRIVE] Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.println(" setting velocity mode + soft gains (pre-arm)...");
+  enable_velocity_control(odrv, data, node_id);
+
   SerialUSB1.print("[ODRIVE] Node ");
   SerialUSB1.print(node_id);
   SerialUSB1.println(" entering closed loop...");
-  enable_closed_loop(odrv, data, node_id); 
-  // Enable velocity control mode (required for gravity compensation)
-  SerialUSB1.print("[ODRIVE] Node ");
-  SerialUSB1.print(node_id);
-  SerialUSB1.println(" enabling velocity+passthrough...");
-  enable_velocity_control(odrv, data, node_id);
+  enable_closed_loop(odrv, data, node_id);
   SerialUSB1.print("[ODRIVE] Node ");
   SerialUSB1.print(node_id);
   SerialUSB1.println(" running");
