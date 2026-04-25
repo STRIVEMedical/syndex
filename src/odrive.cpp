@@ -8,9 +8,14 @@
 #include "odrive.h"
 
 // Softer velocity loop tuning for manual admittance testing.
-static const float TEST_VEL_GAIN = 0.001f;
-static const float TEST_VEL_INT_GAIN = 0.0f;
-static const float TEST_VEL_LIMIT_TURNS_PER_S = 50.0f;  // high limit — current_soft_max controls resistance, not this
+static const float TEST_VEL_GAIN_1_2 = 0.167f;
+static const float TEST_VEL_INT_GAIN_1_2 = 0.333f;
+// static const float TEST_VEL_GAIN_1_2 = 0.083f;
+// static const float TEST_VEL_INT_GAIN_1_2 = 0.333f;
+
+static const float TEST_VEL_GAIN_0 = 0.01f;
+static const float TEST_VEL_INT_GAIN_0 = 0.005f;
+static const float TEST_VEL_LIMIT_TURNS_PER_S = 30.0f;  // high limit — current_soft_max controls resistance, not this
 static const float TEST_CURRENT_SOFT_MAX_A = 6.0f;
 
 static const char* controlModeName(uint8_t mode) {
@@ -120,35 +125,35 @@ void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_i
 }
 
 void enable_velocity_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
-  // Set control mode to torque control and Set input mode to passthrough (direct torque commands)
   odrv.setControllerMode(
-  ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL, 
-  ODriveInputMode::INPUT_MODE_PASSTHROUGH);
-  // Reduce loop aggressiveness so joints are easier to backdrive by hand.
-  odrv.setVelGains(TEST_VEL_GAIN, TEST_VEL_INT_GAIN);
-  odrv.setLimits(TEST_VEL_LIMIT_TURNS_PER_S, TEST_CURRENT_SOFT_MAX_A);
-  data.last_controller_mode.Control_Mode = ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL;
-  data.last_input_mode.Input_Mode = ODriveInputMode::INPUT_MODE_PASSTHROUGH;
-  data.received_last_controller_mode = true;
-  data.received_last_input_mode = true;
-    // Process CAN messages to update status
-  for (int i = 0; i < 15; i++) {
-    delay(10);
-    pumpEvents(can_intf);
+    ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL,
+    ODriveInputMode::INPUT_MODE_PASSTHROUGH);
+
+  float vel_gain, vel_int_gain;
+  if (node_id == 0) {
+    vel_gain     = TEST_VEL_GAIN_0;
+    vel_int_gain = TEST_VEL_INT_GAIN_0;
+  } else {
+    vel_gain     = TEST_VEL_GAIN_1_2;
+    vel_int_gain = TEST_VEL_INT_GAIN_1_2;
   }
-  SerialUSB1.print("[ODRIVE] Node ");
-  SerialUSB1.print(node_id);
+  odrv.setVelGains(vel_gain, vel_int_gain);
+  odrv.setLimits(TEST_VEL_LIMIT_TURNS_PER_S, TEST_CURRENT_SOFT_MAX_A);
+
+  data.last_controller_mode.Control_Mode = ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL;
+  data.last_input_mode.Input_Mode        = ODriveInputMode::INPUT_MODE_PASSTHROUGH;
+  data.received_last_controller_mode     = true;
+  data.received_last_input_mode          = true;
+
+  for (int i = 0; i < 15; i++) { delay(10); pumpEvents(can_intf); }
+
+  SerialUSB1.print("[ODRIVE] Node "); SerialUSB1.print(node_id);
   SerialUSB1.println(" velocity mode enabled");
-  SerialUSB1.print("[ODRIVE] Node ");
-  SerialUSB1.print(node_id);
-  SerialUSB1.print(" vel_gain=");
-  SerialUSB1.print(TEST_VEL_GAIN, 4);
-  SerialUSB1.print(" vel_int=");
-  SerialUSB1.print(TEST_VEL_INT_GAIN, 4);
-  SerialUSB1.print(" vel_limit=");
-  SerialUSB1.print(TEST_VEL_LIMIT_TURNS_PER_S, 2);
-  SerialUSB1.print(" cur_soft_max=");
-  SerialUSB1.println(TEST_CURRENT_SOFT_MAX_A, 2);
+  SerialUSB1.print("[ODRIVE] Node "); SerialUSB1.print(node_id);
+  SerialUSB1.print(" vel_gain=");       SerialUSB1.print(vel_gain, 4);
+  SerialUSB1.print(" vel_int=");        SerialUSB1.print(vel_int_gain, 4);
+  SerialUSB1.print(" vel_limit=");      SerialUSB1.print(TEST_VEL_LIMIT_TURNS_PER_S, 2);
+  SerialUSB1.print(" cur_soft_max=");   SerialUSB1.println(TEST_CURRENT_SOFT_MAX_A, 2);
   printLastControllerMode(data, node_id);
 }
 
