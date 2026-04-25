@@ -58,7 +58,11 @@ static uint32_t      lastHomingLogMs        = 0;
 static int           homingJointIdx         = 0;  // which joint is currently being homed
 
 static const float    HOME_TOL                    = 0.02f;
-static const float    HOMING_VEL                  = 0.8f;   // t/s approach speed
+static const float    HOMING_VEL                  = 0.8f;   // t/s max approach speed
+// Proportional gain for homing velocity: vel = clamp(HOMING_K * err, ±HOMING_VEL).
+// At 0.4 turns error → full speed. At 0.02 turns → 0.04 t/s (soft landing).
+// Direction is always derived from sign(err) — no per-joint home_vel_dir needed.
+static const float    HOMING_K                    = 2.0f;
 static const uint32_t MOVE_TO_HOME_TIMEOUT_MS     = 15000;
 static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 10000;
 static const uint32_t HOMING_LOG_INTERVAL_MS      = 500;
@@ -632,11 +636,12 @@ void stateUpdate()
                 float pos = joints[i].user_data->last_feedback.Pos_Estimate;
                 float err = joints[i].home_pos - pos;
 
-                // Use the per-joint home_vel_dir so direction is always correct
-                // regardless of where the operator left the arm before homing.
-                float vel_cmd = (fabsf(err) > HOME_TOL)
-                    ? joints[i].home_vel_dir * HOMING_VEL
-                    : 0.0f;
+                // Proportional approach: speed scales with distance, direction from
+                // sign(err). This means the joint always moves toward home regardless
+                // of which side it starts on, and decelerates naturally as it closes in.
+                // At |err| >= 0.4 turns → full HOMING_VEL. At HOME_TOL → ~0.04 t/s.
+                float vel_cmd = constrain(HOMING_K * err, -HOMING_VEL, HOMING_VEL);
+                if (fabsf(err) <= HOME_TOL) vel_cmd = 0.0f;
                 joints[i].odrive->setVelocity(vel_cmd, 0.0f);
                 pumpEvents(can_intf);
 

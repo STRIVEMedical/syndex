@@ -18,9 +18,8 @@ struct Joint {
     float           max_torque;       // safety limit (Nm)
     float           home_pos;         // home position (turns)
     bool            use_onboard_encoder; // true = read pos from ODrive, not AS5600
-    float           home_vel_gain;    // velocity P-gain for position-control homing move
-    float           home_vel_int_gain; // velocity I-gain for position-control homing move
-    float           home_vel_dir;     // direction of homing approach: +1.0 or -1.0
+    float           home_vel_gain;    // velocity P-gain for homing move
+    float           home_vel_int_gain; // velocity I-gain for homing move
     const char*     label;          // debug name
 
     // Runtime state

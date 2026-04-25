@@ -17,27 +17,24 @@ joint # |  Odrv/enc
 
 */
 // home_vel_gain / home_vel_int_gain are per-joint.
-// Max first-cycle current ≈ vel_gain × vel_limit (vel_limit is 1.0 t/s in states.cpp).
+// Max first-cycle current ≈ vel_gain × vel_limit (vel_limit is 2.0 t/s during homing).
 // Tuning rules:
 //   Shakes or encoder error (disarm=0x1000) → halve vel_gain
 //   Can't start moving against gravity       → integrator builds over ~5-10s; raise vel_int if needed
 //   Overshoots / oscillates near home        → halve vel_int_gain
-// Field order: odrive, user_data, sensor_ch, max_torque, home_pos, use_onboard_encoder,
-//              home_vel_gain, home_vel_int_gain, home_vel_dir, label, angle, rawValue, velocity, is_homed, target_torque
 //
-// home_vel_dir: the sign (+1.0 or -1.0) that the homing velocity is multiplied by.
-//   Set this to the direction the joint must physically travel to reach home,
-//   regardless of where the operator left it. Check the serial log: if pos is
-//   positive and moving away from 0, flip the sign here.
+// Homing direction is computed automatically from sign(err) — no home_vel_dir needed.
+// Field order: odrive, user_data, sensor_ch, max_torque, home_pos, use_onboard_encoder,
+//              home_vel_gain, home_vel_int_gain, label, angle, rawValue, velocity, is_homed, target_torque
 Joint joints[NUM_JOINTS] = {
-    // odrive  user_data         sensor_ch         max_t  home   onboard  home_vg  home_vi  home_dir  label      angle  raw  vel    homed  target_t
-    { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.05f,   0.0f,    +1.0f,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
-    { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    1.0f,    0.5f,    +1.0f,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
-    { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    1.0f,    0.5f,    -1.0f,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          3,                0.0f,  0.0f,  false,   0.0f,    0.0f,    +1.0f,    "EXT_CH3", 0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          2,                0.0f,  0.0f,  false,   0.0f,    0.0f,    +1.0f,    "EXT_CH2", 0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          1,                0.0f,  0.0f,  false,   0.0f,    0.0f,    +1.0f,    "EXT_CH1", 0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          0,                0.0f,  0.0f,  false,   0.0f,    0.0f,    +1.0f,    "EXT_CH0", 0.0f,  0,   0.0f,  false, 0.0f },
+    // odrive  user_data         sensor_ch         max_t  home   onboard  home_vg  home_vi  label      angle  raw  vel    homed  target_t
+    { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.05f,   0.0f,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    1.0f,    0.5f,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    1.0f,    0.5f,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          3,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH3", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          2,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH2", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          1,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH1", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          0,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH0", 0.0f,  0,   0.0f,  false, 0.0f },
 };
 
 void initJoints() {
