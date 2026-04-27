@@ -38,6 +38,7 @@ public struct Payload_TelemJointData
     public ushort J4_AngleRaw; public ushort J4_VelRaw;
     public ushort J5_AngleRaw; public ushort J5_VelRaw;
     public ushort J6_AngleRaw; public ushort J6_VelRaw;
+    public byte TriggerPressed;
 }
 
 // TELEM_STATUS (Type: 0x85, Length: 10)

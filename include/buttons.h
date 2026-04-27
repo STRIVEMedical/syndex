@@ -10,6 +10,13 @@ typedef struct {
     uint8_t lastButtonState; // Last state from button, active LOW
 } button_t;
 
+struct DebouncedButton {
+    int lastReading;
+    int stableState;
+    unsigned long lastDebounceTime;
+    const unsigned long debounceDelay = 50;
+};
+
 namespace buttonPins {
     extern button_t powerButton;
     extern button_t toolSelect;
@@ -28,6 +35,9 @@ typedef struct {
 
 } ButtonEvents_t;
 
+static DebouncedButton dbPower = {HIGH, HIGH, 0};
+static DebouncedButton dbCycle = {HIGH, HIGH, 0};
+
 void buttonInit(button_t* b);
 
 void buttonDetect(button_t* b);
@@ -42,5 +52,6 @@ void ToolCycleButton(button_t* b);
 void testPowerButton(button_t* b);
 float getTriggerDepth(button_t* b);
 void triggerPulled(button_t* b);
+bool powerButtonWasPressed();
 
 #endif

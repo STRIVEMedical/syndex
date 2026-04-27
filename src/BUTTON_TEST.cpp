@@ -9,20 +9,6 @@
 
 // ─── Trigger Input (pin 40, analog) ──────────────────────────────────────────
 
-
-// ─── Debounce State ───────────────────────────────────────────────────────────
-
-struct DebouncedButton {
-    int lastReading;
-    int stableState;
-    unsigned long lastDebounceTime;
-    const unsigned long debounceDelay = 50;
-};
-
-static DebouncedButton dbPower = {HIGH, HIGH, 0};
-static DebouncedButton dbCycle = {HIGH, HIGH, 0};
-//static DebouncedButton dbTrigger = {HIGH, HIGH, 0};
-
 // ─── Button Poll ──────────────────────────────────────────────────────────────
 static void pollButton(button_t* b, DebouncedButton& db, const char* label) {
     int reading = digitalRead(b->pin);
