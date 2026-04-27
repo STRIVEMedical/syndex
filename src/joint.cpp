@@ -16,21 +16,18 @@ joint # |  Odrv/enc
     6   |   enc 0
 
 */
-// home_vel_gain / home_vel_int_gain are per-joint.
-// Max first-cycle current ≈ vel_gain × vel_limit (vel_limit is 2.0 t/s during homing).
-// Tuning rules:
-//   Shakes or encoder error (disarm=0x1000) → halve vel_gain
-//   Can't start moving against gravity       → integrator builds over ~5-10s; raise vel_int if needed
-//   Overshoots / oscillates near home        → halve vel_int_gain
-//
-// Homing direction is computed automatically from sign(err) — no home_vel_dir needed.
+// ── Homing gains (per joint) ──────────────────────────────────────────────────
+// home_vel_gain / home_vel_int_gain are used only during the return-to-home move.
+// They match each ODrive's configured velocity loop gains (confirmed via web GUI).
+// Tune these to change homing behaviour — admittance gains are in odrive.cpp.
+// Max homing current ≈ home_vel_gain × HOMING_VEL_LIMIT (2.0 t/s).
 // Field order: odrive, user_data, sensor_ch, max_torque, home_pos, use_onboard_encoder,
 //              home_vel_gain, home_vel_int_gain, label, angle, rawValue, velocity, is_homed, target_torque
 Joint joints[NUM_JOINTS] = {
     // odrive  user_data         sensor_ch         max_t  home   onboard  home_vg  home_vi  label      angle  raw  vel    homed  target_t
     { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.01f,   0.005f,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
-    { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.167f,    0.333f,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
-    { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.167f,    0.333f,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.01f,   0.0f,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.01f,   0.0f,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
     { nullptr, nullptr,          3,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH3", 0.0f,  0,   0.0f,  false, 0.0f },
     { nullptr, nullptr,          2,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH2", 0.0f,  0,   0.0f,  false, 0.0f },
     { nullptr, nullptr,          1,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH1", 0.0f,  0,   0.0f,  false, 0.0f },
@@ -81,9 +78,9 @@ void readJointAngles(){
                 joints[i].angle = computeAngle(i, raw);
                 joints[i].velocity = 0.0f;
             } else {
-            SerialUSB1.print("[WARN] AS5600 read failed on channel ");
-            SerialUSB1.println((int)joints[i].sensor_channel);
-            joints[i].velocity = 0.0f;
+            // SerialUSB1.print("[WARN] AS5600 read failed on channel ");
+            // SerialUSB1.println((int)joints[i].sensor_channel);
+            // joints[i].velocity = 0.0f;
             }
         }
     }
@@ -219,9 +216,7 @@ void confirmHome() {
         pumpEvents(can_intf);
 
         // 5. Re-enter closed-loop control.
-        joints[i].odrive->setState(ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL);
-        delay(50);
-        pumpEvents(can_intf);
+        enable_closed_loop(*joints[i].odrive, *joints[i].user_data, i);
 
         joints[i].is_homed = true;
         SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);

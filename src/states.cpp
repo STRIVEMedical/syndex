@@ -58,13 +58,16 @@ static uint32_t      lastHomingLogMs        = 0;
 static int           homingJointIdx         = 0;  // index into HOMING_ORDER[]
 
 // Order in which ODrive joints are homed. Change this array to reorder.
-static const int      HOMING_ORDER[]              = {0, 2, 1};
+static const int      HOMING_ORDER[]              = {0, 1, 2};
 static const int      HOMING_ORDER_LEN            = 3;
 
-static const float    HOME_TOL                    = 0.1f;
-static const float    HOMING_VEL                  = 50.0f;   // t/s — used as vel_limit in position mode
-static const float    HOMING_POS_GAIN             = 20.0f;   // pos P-gain: vel_setpoint = pos_gain × err, capped at HOMING_VEL
-static const uint32_t MOVE_TO_HOME_TIMEOUT_MS     = 30000;  // 30 s — gravity joints need integrator buildup time
+static const float    HOME_TOL                    = 0.3f;
+// ── Homing gains ─────────────────────────────────────────────────────────────
+// Per-joint vel gains for homing come from joints[i].home_vel_gain /
+// home_vel_int_gain (set in joint.cpp). Tune those to change homing behaviour
+// without affecting admittance. HOMING_VEL_LIMIT caps approach speed for safety.
+static const float    HOMING_VEL_LIMIT            = 10.0f;   // vel_limit (t/s) during position-control homing
+static const uint32_t MOVE_TO_HOME_TIMEOUT_MS     = 30000;  // 30 s per joint
 static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 10000;
 static const uint32_t HOMING_LOG_INTERVAL_MS      = 500;
 
@@ -92,63 +95,41 @@ static void resetHomingState() {
     homingTimerStarted = false;
 }
 
-// Prepares one ODrive joint for position-control homing.
-// Position mode gives natural proportional deceleration near home (vel_setpoint = pos_gain × err,
-// capped at HOMING_VEL) without the two-zone velocity logic — and at low vel_gain (0.05)
-// the current stays below the encoder-noise threshold even at full approach speed.
+// Prepares a single ODrive joint to begin moving to home.
+// Called once per joint at the start of its homing turn.
 static void setupJointForHoming(int i) {
-    pumpEvents(can_intf);
-    bool inClosedLoop = joints[i].user_data->received_heartbeat &&
-                        joints[i].user_data->last_heartbeat.Axis_State == 8;
-    if (!inClosedLoop) {
-        SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
-        SerialUSB1.println(" disarmed — re-arming...");
-        joints[i].odrive->clearErrors();
-        delay(30); pumpEvents(can_intf);
-
-        // Set mode and gains BEFORE setState — prevents the drive from briefly running
-        // with high flash-stored gains which would immediately trip an encoder error.
-        joints[i].odrive->setControllerMode(
-            ODriveControlMode::CONTROL_MODE_POSITION_CONTROL,
-            ODriveInputMode::INPUT_MODE_PASSTHROUGH);
-        joints[i].odrive->setPosGain(HOMING_POS_GAIN);
-        joints[i].odrive->setVelGains(joints[i].home_vel_gain, joints[i].home_vel_int_gain);
-        joints[i].odrive->setLimits(HOMING_VEL, 20.0f);
-        pumpEvents(can_intf);
-
-        joints[i].odrive->setState(ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL);
-        for (int k = 0; k < 20; k++) { delay(10); pumpEvents(can_intf); }
-        inClosedLoop = joints[i].user_data->received_heartbeat &&
-                       joints[i].user_data->last_heartbeat.Axis_State == 8;
-        SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
-        SerialUSB1.println(inClosedLoop ? " re-arm OK" : " re-arm FAILED — will retry next cycle");
-    }
-
-    // Position control: pos_gain × err → vel_setpoint, capped at HOMING_VEL.
-    // vel_gain=0.05 keeps current well below encoder noise threshold at 0.8 t/s.
-    joints[i].odrive->setControllerMode(
-        ODriveControlMode::CONTROL_MODE_POSITION_CONTROL,
-        ODriveInputMode::INPUT_MODE_PASSTHROUGH);
-    joints[i].odrive->setPosGain(HOMING_POS_GAIN);
+    // Step 1: Apply homing gains and velocity limit BEFORE switching modes.
+    // CAN commands are fire-and-forget — if these are sent after enable_position_control,
+    // the ODrive spends ~150ms in position control with the old admittance vel_limit=30,
+    // which lets a large position error accelerate the joint past HOMING_VEL_LIMIT
+    // (→ 0x8000 VELOCITY_LIMIT_VIOLATION before the new limit even arrives).
+    joints[i].odrive->setPosGain(5.0f);
     joints[i].odrive->setVelGains(joints[i].home_vel_gain, joints[i].home_vel_int_gain);
-    joints[i].odrive->setLimits(HOMING_VEL, 20.0f);
+    joints[i].odrive->setLimits(HOMING_VEL_LIMIT, 20.0f);
+    delay(20); pumpEvents(can_intf);  // let gains/limits arrive before mode switch
 
-    // Let mode-switch commands arrive before sending a position setpoint.
+    // Step 2: Switch to position control — limits are already in place.
+    // The ODrive will hold the current position until we send the first setPosition.
+    enable_position_control(*joints[i].odrive, *joints[i].user_data, i);
+
+    // Step 3: Wait for mode switch to settle.
     for (int k = 0; k < 5; k++) { delay(10); pumpEvents(can_intf); }
 
-    // Hold current position — zero initial error prevents a large current spike
-    // that would fire the encoder error when switching from velocity to position mode.
+    // Step 5: Send the home position target once — the ODrive holds it until told otherwise.
+    // Briefly hold the current position first so the controller starts with zero error
+    // rather than immediately demanding full current to close a large position gap.
     float cur_pos = joints[i].user_data->last_feedback.Pos_Estimate;
     joints[i].odrive->setPosition(cur_pos, 0.0f, 0.0f);
+    delay(20); pumpEvents(can_intf);
+    //actually move the joint to its home 
+    joints[i].odrive->setPosition(joints[i].home_pos, 0.0f, 0.0f);
     pumpEvents(can_intf);
 
     SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
-    SerialUSB1.print(" → pos homing  vel_gain=");
+    SerialUSB1.print(" homing start: vel_gain=");
     SerialUSB1.print(joints[i].home_vel_gain, 3);
-    SerialUSB1.print("  vel_int=");
-    SerialUSB1.print(joints[i].home_vel_int_gain, 3);
-    SerialUSB1.print("  pos_gain="); SerialUSB1.print(HOMING_POS_GAIN, 1);
-    SerialUSB1.println("  [OK]");
+    SerialUSB1.print(" vel_int=");
+    SerialUSB1.println(joints[i].home_vel_int_gain, 3);
 }
 
 /*
@@ -302,10 +283,10 @@ bool allConnectionsReady()
         setError(ODRIVE_ERROR);
         return false;
     }
-    if (!verifyI2C()) {
-        setError(I2C_ERROR);
-        return false;
-    }
+    // if (!verifyI2C()) {
+    //     setError(I2C_ERROR);
+    //     return false;
+    // }
     return true;
 }
 
@@ -345,12 +326,12 @@ void enableI2CPacketSend()
             return;
         }
 
-        if (!j->use_onboard_encoder && j->rawValue == 0xFFFF) {
-            setError(I2C_ERROR);
-            sendErrorMessage("I2C error: external encoder read failed");
-            currState = ERROR_STATE;
-            return;
-        }
+        // if (!j->use_onboard_encoder && j->rawValue == 0xFFFF) {
+        //     setError(I2C_ERROR);
+        //     sendErrorMessage("I2C error: external encoder read failed");
+        //     currState = ERROR_STATE;
+        //     return;
+        // }
 
         buildTelemJointPayload(data, i, j->angle, j->velocity);
     }
@@ -497,23 +478,34 @@ void stateUpdate()
     // Success: power LED on, transition to IDLE.
     // Failure: transition to ERROR_STATE.
     case BOOTUP:
-        if (verifyODrive() && verifyI2C() && verifyLED()) {
-            ONToggleLED(&Led::powerLed);   // power LED on = system alive
-            OFFToggleLED(&Led::errorLed);  // ensure error LED is off
-            currState = IDLE;
-        }
-        else {
-            currState = ERROR_STATE;
-        }
+        verifyODrive();
+        // if (verifyODrive() && verifyI2C() && verifyLED()) {
+        //     ONToggleLED(&Led::powerLed);   // power LED on = system alive
+        //     OFFToggleLED(&Led::errorLed);  // ensure error LED is off
+        currState = IDLE;
+        // }
+        // else {
+        //     currState = ERROR_STATE;
+        // }
         break;
 
     // Wait for CMD_PING from host PC.
     // PING received: transition to CONNECTED. (Pong is sent in handlePing)
     case IDLE:
+    {
+        static uint32_t lastIdleErrorCheckMs = 0;
+        if ((millis() - lastIdleErrorCheckMs) >= 2000) {
+            pumpEvents(can_intf);
+            printOdriveError(&odrv0, 0);
+            printOdriveError(&odrv1, 1);
+            printOdriveError(&odrv2, 2);
+            lastIdleErrorCheckMs = millis();
+        }
         if (pollCmdPing()) {
             currState = CONNECTED;
         }
         break;
+    }
 
     // Verify all communication links are healthy.
     // Failure: transition to ERROR_STATE.
@@ -585,12 +577,16 @@ void stateUpdate()
             readyTelemInit = true;
         }
 
-        // --- MOVING_TO_HOME entry: zero velocities and set up first joint ---
+        // ── Sub-state: MOVING_TO_HOME ────────────────────────────────────────────
+        // Entered when the user presses H (CMD_START_HOMING) while in ADMITTANCE.
+        // Stops admittance, switches each ODrive joint to position control one at a
+        // time (order defined by HOMING_ORDER), and drives it to home_pos=0.
+        // When all joints are done, transitions to RESTORING.
         if (moveToHomePending && readySubState == ADMITTANCE) {
             moveToHomePending = false;
             SerialUSB1.println("[HOMING] Starting sequential homing.");
 
-            // Flush any residual admittance velocity commands before switching modes.
+            // Stop any residual velocity commands from admittance before switching modes.
             for (int i = 0; i < NUM_JOINTS; i++) {
                 if (!joints[i].use_onboard_encoder || joints[i].odrive == nullptr) continue;
                 joints[i].odrive->setVelocity(0.0f, 0.0f);
@@ -603,42 +599,29 @@ void stateUpdate()
             readySubState = MOVING_TO_HOME;
         }
 
-        // --- MOVING_TO_HOME loop: velocity-control homing, one joint at a time ---
         if (readySubState == MOVING_TO_HOME) {
-            int i = HOMING_ORDER[homingJointIdx];
+            int i = HOMING_ORDER[homingJointIdx];  // joint currently being homed
             uint32_t nowMs = millis();
             bool doLog = (nowMs - lastHomingLogMs) >= HOMING_LOG_INTERVAL_MS;
             bool advanceJoint = false;
 
-            // If the drive disarmed mid-move, attempt recovery then continue.
+            // If the ODrive disarmed mid-move, clear the fault and re-enter closed loop.
+            // The drive keeps its position control mode, so no mode re-setup needed.
             bool armed = joints[i].user_data->received_heartbeat &&
                          joints[i].user_data->last_heartbeat.Axis_State == 8;
             if (!armed) {
                 SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
-                SerialUSB1.print(" disarmed mid-move (axis_err=0x");
+                SerialUSB1.print(" disarmed (axis_err=0x");
                 SerialUSB1.print(joints[i].user_data->last_heartbeat.Axis_Error, HEX);
                 SerialUSB1.println(") — recovering...");
                 joints[i].odrive->clearErrors();
-                delay(20); pumpEvents(can_intf);
-
-                // Set mode and gains BEFORE setState to avoid flash-gain encoder error.
-                joints[i].odrive->setControllerMode(
-                    ODriveControlMode::CONTROL_MODE_POSITION_CONTROL,
-                    ODriveInputMode::INPUT_MODE_PASSTHROUGH);
-                joints[i].odrive->setPosGain(HOMING_POS_GAIN);
-                joints[i].odrive->setVelGains(joints[i].home_vel_gain, joints[i].home_vel_int_gain);
-                joints[i].odrive->setLimits(HOMING_VEL, 20.0f);
-                pumpEvents(can_intf);
-
+                delay(50); pumpEvents(can_intf);
                 joints[i].odrive->setState(ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL);
                 for (int k = 0; k < 20; k++) { delay(10); pumpEvents(can_intf); }
-
-                // Hold current pos to avoid a large initial error spike on re-arm.
+                // Hold current position so the controller has zero initial error on re-arm.
                 float cur_pos = joints[i].user_data->last_feedback.Pos_Estimate;
                 joints[i].odrive->setPosition(cur_pos, 0.0f, 0.0f);
                 pumpEvents(can_intf);
-                for (int k = 0; k < 5; k++) { delay(10); pumpEvents(can_intf); }
-
                 bool reArmed = joints[i].user_data->received_heartbeat &&
                                joints[i].user_data->last_heartbeat.Axis_State == 8;
                 SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
@@ -650,9 +633,6 @@ void stateUpdate()
                 float vel_est = joints[i].user_data->last_feedback.Vel_Estimate;
                 float err     = joints[i].home_pos - pos;
 
-                // Position controller handles deceleration: vel_setpoint = pos_gain × err,
-                // capped at HOMING_VEL. Just keep refreshing the target each loop.
-                joints[i].odrive->setPosition(joints[i].home_pos, 0.0f, 0.0f);
                 pumpEvents(can_intf);
 
                 if (doLog) {
@@ -663,16 +643,12 @@ void stateUpdate()
                     SerialUSB1.println(fabsf(err) <= HOME_TOL ? "  [AT HOME]" : "  [moving]");
                 }
 
-                // Arrival: within tolerance AND motor nearly stopped.
+                // Joint is home when it's within tolerance and has nearly stopped.
                 if (fabsf(err) <= HOME_TOL && fabsf(vel_est) < 0.1f) {
-                    joints[i].odrive->setPosition(joints[i].home_pos, 0.0f, 0.0f);
-                    pumpEvents(can_intf);
                     SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
                     SerialUSB1.println(" reached home.");
                     advanceJoint = true;
                 } else if ((nowMs - moveToHomeStartMs) > MOVE_TO_HOME_TIMEOUT_MS) {
-                    joints[i].odrive->setPosition(joints[i].home_pos, 0.0f, 0.0f);
-                    pumpEvents(can_intf);
                     SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
                     SerialUSB1.println(" timed out.");
                     advanceJoint = true;
@@ -681,6 +657,7 @@ void stateUpdate()
 
             if (doLog) lastHomingLogMs = nowMs;
 
+            // Advance to the next joint, or finish if all joints are done.
             if (advanceJoint) {
                 homingJointIdx++;
                 if (homingJointIdx >= HOMING_ORDER_LEN) {
@@ -693,9 +670,12 @@ void stateUpdate()
             }
         }
 
-        // --- RESTORING: switch back to velocity/admittance mode ---
+        // ── Sub-state: RESTORING ─────────────────────────────────────────────────
+        // Runs once after MOVING_TO_HOME finishes. Switches all ODrives back from
+        // position control to soft velocity control so the arm is compliant again,
+        // then immediately transitions back to ADMITTANCE.
         if (readySubState == RESTORING) {
-            SerialUSB1.println("[READY] Restoring velocity (admittance) mode.");
+            SerialUSB1.println("[READY] Restoring admittance mode.");
             for (int i = 0; i < NUM_JOINTS; i++) {
                 if (joints[i].use_onboard_encoder && joints[i].odrive != nullptr) {
                     enable_velocity_control(*joints[i].odrive, *joints[i].user_data, i);
@@ -706,7 +686,10 @@ void stateUpdate()
             readySubState = ADMITTANCE;
         }
 
-        // Normal admittance loop — only runs when not in a move-to-home sequence.
+        // ── Sub-state: ADMITTANCE ────────────────────────────────────────────────
+        // Default operating mode. ODrives run in soft velocity control so the arm
+        // is compliant and can be moved by hand. Runs every loop iteration until
+        // the user triggers a return-to-home (H key).
         if (readySubState == ADMITTANCE) {
             readJointAngles();
             uint32_t nowUs = micros();

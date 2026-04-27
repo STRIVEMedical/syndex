@@ -7,16 +7,16 @@
 #include <Arduino.h>
 #include "odrive.h"
 
-// Softer velocity loop tuning for manual admittance testing.
-static const float TEST_VEL_GAIN_1_2 = 0.167f;
-static const float TEST_VEL_INT_GAIN_1_2 = 0.333f;
-// static const float TEST_VEL_GAIN_1_2 = 0.083f;
-// static const float TEST_VEL_INT_GAIN_1_2 = 0.333f;
-
-static const float TEST_VEL_GAIN_0 = 0.01f;
-static const float TEST_VEL_INT_GAIN_0 = 0.005f;
-static const float TEST_VEL_LIMIT_TURNS_PER_S = 30.0f;  // high limit — current_soft_max controls resistance, not this
-static const float TEST_CURRENT_SOFT_MAX_A = 6.0f;
+// ── Admittance control gains ──────────────────────────────────────────────────
+// Used by enable_velocity_control(), which is called on boot and after homing.
+// These control how compliant the arm feels when moved by hand.
+// Tune these to adjust admittance feel — homing is unaffected.
+static const float ADMITTANCE_VEL_GAIN_0       = 0.01f;  // ODrive 0 (ROTATE)
+static const float ADMITTANCE_VEL_INT_GAIN_0   = 0.0f;
+static const float ADMITTANCE_VEL_GAIN_1_2     = 0.01f;  // ODrives 1 & 2 (REACH / LIFT)
+static const float ADMITTANCE_VEL_INT_GAIN_1_2 = 0.0f;
+static const float ADMITTANCE_VEL_LIMIT        = 30.0f; // high — current_soft_max limits resistance, not this
+static const float ADMITTANCE_CURRENT_SOFT_MAX =  3.0f;
 
 static const char* controlModeName(uint8_t mode) {
   switch (mode) {
@@ -131,14 +131,14 @@ void enable_velocity_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node
 
   float vel_gain, vel_int_gain;
   if (node_id == 0) {
-    vel_gain     = TEST_VEL_GAIN_0;
-    vel_int_gain = TEST_VEL_INT_GAIN_0;
+    vel_gain     = ADMITTANCE_VEL_GAIN_0;
+    vel_int_gain = ADMITTANCE_VEL_INT_GAIN_0;
   } else {
-    vel_gain     = TEST_VEL_GAIN_1_2;
-    vel_int_gain = TEST_VEL_INT_GAIN_1_2;
+    vel_gain     = ADMITTANCE_VEL_GAIN_1_2;
+    vel_int_gain = ADMITTANCE_VEL_INT_GAIN_1_2;
   }
   odrv.setVelGains(vel_gain, vel_int_gain);
-  odrv.setLimits(TEST_VEL_LIMIT_TURNS_PER_S, TEST_CURRENT_SOFT_MAX_A);
+  odrv.setLimits(ADMITTANCE_VEL_LIMIT, ADMITTANCE_CURRENT_SOFT_MAX);
 
   data.last_controller_mode.Control_Mode = ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL;
   data.last_input_mode.Input_Mode        = ODriveInputMode::INPUT_MODE_PASSTHROUGH;
@@ -152,8 +152,8 @@ void enable_velocity_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node
   SerialUSB1.print("[ODRIVE] Node "); SerialUSB1.print(node_id);
   SerialUSB1.print(" vel_gain=");       SerialUSB1.print(vel_gain, 4);
   SerialUSB1.print(" vel_int=");        SerialUSB1.print(vel_int_gain, 4);
-  SerialUSB1.print(" vel_limit=");      SerialUSB1.print(TEST_VEL_LIMIT_TURNS_PER_S, 2);
-  SerialUSB1.print(" cur_soft_max=");   SerialUSB1.println(TEST_CURRENT_SOFT_MAX_A, 2);
+  SerialUSB1.print(" vel_limit=");      SerialUSB1.print(ADMITTANCE_VEL_LIMIT, 2);
+  SerialUSB1.print(" cur_soft_max=");   SerialUSB1.println(ADMITTANCE_CURRENT_SOFT_MAX, 2);
   printLastControllerMode(data, node_id);
 }
 
