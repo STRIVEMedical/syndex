@@ -26,8 +26,8 @@ joint # |  Odrv/enc
 Joint joints[NUM_JOINTS] = {
     // odrive  user_data         sensor_ch         max_t  home   onboard  home_vg  home_vi  label      angle  raw  vel    homed  target_t
     { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.01f,   0.005f,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
-    { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.01f,   0.0f,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
-    { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.01f,   0.0f,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.03f,   0.0f,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.03f,   0.0f,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
     { nullptr, nullptr,          3,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH3", 0.0f,  0,   0.0f,  false, 0.0f },
     { nullptr, nullptr,          2,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH2", 0.0f,  0,   0.0f,  false, 0.0f },
     { nullptr, nullptr,          1,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH1", 0.0f,  0,   0.0f,  false, 0.0f },

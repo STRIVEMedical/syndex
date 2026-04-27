@@ -13,8 +13,10 @@
 // Tune these to adjust admittance feel — homing is unaffected.
 static const float ADMITTANCE_VEL_GAIN_0       = 0.01f;  // ODrive 0 (ROTATE)
 static const float ADMITTANCE_VEL_INT_GAIN_0   = 0.0f;
-static const float ADMITTANCE_VEL_GAIN_1_2     = 0.01f;  // ODrives 1 & 2 (REACH / LIFT)
-static const float ADMITTANCE_VEL_INT_GAIN_1_2 = 0.0f;
+// static const float ADMITTANCE_VEL_GAIN_1_2     = 0.01f;  // ODrives 1 & 2 (REACH / LIFT)
+// static const float ADMITTANCE_VEL_INT_GAIN_1_2 = 0.01f;
+static const float ADMITTANCE_VEL_GAIN_1_2     = 0.009f;  // ODrives 1 & 2 (REACH / LIFT)
+static const float ADMITTANCE_VEL_INT_GAIN_1_2 = 0.005f;
 static const float ADMITTANCE_VEL_LIMIT        = 30.0f; // high — current_soft_max limits resistance, not this
 static const float ADMITTANCE_CURRENT_SOFT_MAX =  3.0f;
 

@@ -2,8 +2,8 @@
 #include <math.h>
 
 // Simple single-link gravity model: tau_gravity = m*g*L*cos(theta)
-#define ARM_MASS_KG     1.5f     // estimated arm link mass
-#define ARM_LENGTH_M    0.3f     // estimated CoM distance from joint
+#define ARM_MASS_KG     0.1f     // estimated arm link mass
+#define ARM_LENGTH_M    1.3f     // estimated CoM distance from joint
 #define GRAVITY         9.81f
 
 void initAdmittance(AdmittanceState* s, float M, float B, float Kt, float ratio) {

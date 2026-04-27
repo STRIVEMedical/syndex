@@ -6,20 +6,19 @@
 #include "joint.h"
 #include "comms.h"   // can_intf for pumpEvents during iq_bias calibration
 
-// Conservative defaults to keep first integration stable.
-static const float ADM_DEFAULT_M = 0.03f;
-static const float ADM_DEFAULT_B = 0.05f;
-static const float ADM_DEFAULT_KT = 0.087f;
-static const float ADM_DEFAULT_RATIO = 5.0f;
+static const float ADM_DEFAULT_M     = 0.001f;  // was 0.005 — near-instant response
+static const float ADM_DEFAULT_B     = 0.08f;  // was 0.009 — minimum before drift
+static const float ADM_DEFAULT_KT    = 0.087f;  // motor Kt (Nm/A)
+static const float ADM_DEFAULT_RATIO = 5.0f;    // gearbox reduction
 
-static const float ADM_TAU_DEADBAND_NM = 0.10f;   // raised: filters gravity residuals + noise
-static const float ADM_MAX_VEL_TURNS_PER_S = 1.0f; // lowered: prevents runaway during tuning
-static const float ADM_TAU_SIGN = -1.0f;            // flip to +1 if arm moves against your push
-static const uint32_t ADM_DEBUG_INTERVAL_MS = 100;
-
-// Controller-owned dynamic state for each logical joint.
+// In velocity control mode, iq_measured reflects external force (gravity + user push),
+// NOT the motor's own command (vel_gain=0.01 draws negligible current).
+// This makes iq-based force estimation stable, unlike torque control mode where
+// iq_measured includes the commanded current and creates positive feedback.
+static const float ADM_TAU_DEADBAND_NM    = 0.01f;   // was 0.02 — responds to smaller forces
+static const float ADM_MAX_VEL_TURNS_PER_S = 4.0f;  // was 2.0 — allows faster motion
+static const float ADM_TAU_SIGN           = -1.0f;  // flip to +1 if arm moves against push
 static AdmittanceState g_admittance[NUM_JOINTS];
-static uint32_t g_last_adm_debug_ms = 0;
 
 void initAdmittanceController() {
   for (int i = 0; i < NUM_JOINTS; ++i) {
@@ -33,15 +32,13 @@ void initAdmittanceController() {
 }
 
 void resetAdmittanceController() {
-  // Keep tuned parameters, reset integrated dynamics, calibrate iq_bias.
   for (int i = 0; i < NUM_JOINTS; ++i) {
     g_admittance[i].vel = 0.0f;
     g_admittance[i].pos = 0.0f;
 
-    // Sample iq 10 times to measure the baseline current (gravity + friction
-    // at this arm position). Only deviations from this bias are treated as
-    // human-applied force. Re-run resetAdmittanceController() any time the
-    // arm moves to a new resting position and you want to recalibrate.
+    // Sample iq 10 times to calibrate the gravity+friction baseline.
+    // Only deviations from this bias are treated as human-applied force.
+    // Re-calibrates every time the system enters READY.
     Joint* j = getJoint(i);
     if (j == nullptr || j->odrive == nullptr || j->user_data == nullptr
         || !j->use_onboard_encoder) {
@@ -61,83 +58,46 @@ void resetAdmittanceController() {
     }
 
     g_admittance[i].iq_bias = (count > 0) ? (sum / count) : 0.0f;
-    // SerialUSB1.print("[ADM] j");
-    // SerialUSB1.print(i);
-    // SerialUSB1.print(" iq_bias=");
-    // SerialUSB1.print(g_admittance[i].iq_bias, 4);
-    // SerialUSB1.println(" A");
+    SerialUSB1.print("[ADM] j"); SerialUSB1.print(i);
+    SerialUSB1.print(" iq_bias="); SerialUSB1.print(g_admittance[i].iq_bias, 4);
+    SerialUSB1.println(" A");
   }
 }
 
 void stepAdmittanceController(float dt) {
-  // Clamp dt to avoid large integration jumps after stalls.
-  if (dt <= 0.0f) {
-    return;
-  }
-  if (dt > 0.05f) {
-    dt = 0.05f;
-  }
-
-  uint32_t now_ms = millis();
-  bool should_debug = (now_ms - g_last_adm_debug_ms) >= ADM_DEBUG_INTERVAL_MS;
+  if (dt <= 0.0f) return;
+  if (dt > 0.05f) dt = 0.05f;
 
   for (int i = 0; i < NUM_JOINTS; ++i) {
     Joint* j = getJoint(i);
-    if (j == nullptr || j->odrive == nullptr || j->user_data == nullptr) {
-      continue;
-    }
+    if (j == nullptr || j->odrive == nullptr || j->user_data == nullptr) continue;
+    if (!j->use_onboard_encoder) continue;
 
-    // Start with onboard-encoder ODrive joints only.
-    if (!j->use_onboard_encoder) {
-      continue;
-    }
-
-    // Poll fresh iq current each cycle; fall back to last valid sample.
+    // Poll fresh iq current; fall back to last valid sample.
     Get_Iq_msg_t iq_msg;
     if (j->odrive->getCurrents(iq_msg, 3)) {
       j->user_data->last_iq_msg = iq_msg;
       j->user_data->received_iq_current = true;
     }
+    if (!j->user_data->received_iq_current) continue;
 
-    if (!j->user_data->received_iq_current) {
-      continue;
-    }
-
-    float angle_rad = j->angle * DEG_TO_RAD;
+    float angle_rad   = j->angle * DEG_TO_RAD;
     float iq_measured = j->user_data->last_iq_msg.Iq_Measured;
 
+    // Estimate external (human-applied) torque. In velocity control mode the motor
+    // draws almost no current itself (vel_gain=0.01), so iq_measured ≈ external torque.
     float tau_raw = estimateExternalTorque(&g_admittance[i], iq_measured, angle_rad);
     float tau_ext = ADM_TAU_SIGN * tau_raw;
-    if (fabsf(tau_ext) < ADM_TAU_DEADBAND_NM) {
-      tau_ext = 0.0f;
-    }
+    if (fabsf(tau_ext) < ADM_TAU_DEADBAND_NM) tau_ext = 0.0f;
 
     updateAdmittance(&g_admittance[i], tau_ext, dt);
 
-    // Convert model rad/s to ODrive turns/s command.
-    float vel_cmd = g_admittance[i].vel / (2.0f * PI * g_admittance[i].gear_ratio);
+    // Convert joint rad/s → motor turns/s: motor spins gear_ratio× faster than joint.
+    float vel_cmd = g_admittance[i].vel * g_admittance[i].gear_ratio / (2.0f * PI);
     vel_cmd = constrain(vel_cmd, -ADM_MAX_VEL_TURNS_PER_S, ADM_MAX_VEL_TURNS_PER_S);
 
     j->odrive->setVelocity(vel_cmd, 0.0f);
 
-    // if (should_debug) {
-    //   SerialUSB1.print("[ADM] j");
-    //   SerialUSB1.print(i);
-    //   SerialUSB1.print(" iq=");
-    //   SerialUSB1.print(iq_measured, 3);
-    //   SerialUSB1.print("A (bias=");
-    //   SerialUSB1.print(g_admittance[i].iq_bias, 3);
-    //   SerialUSB1.print(") tau_raw=");
-    //   SerialUSB1.print(tau_raw, 3);
-    //   SerialUSB1.print("Nm tau_ext=");
-    //   SerialUSB1.print(tau_ext, 3);
-    //   SerialUSB1.print("Nm vel_cmd=");
-    //   SerialUSB1.print(vel_cmd, 3);
-    //   SerialUSB1.println(" turns/s");
-    // }
   }
 
-  if (should_debug) {
-    g_last_adm_debug_ms = now_ms;
-  }
 }
