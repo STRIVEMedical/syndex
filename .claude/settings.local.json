@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pio run *)",
+      "Bash(~/.platformio/penv/Scripts/pio.exe run *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.odriverobotics.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(curl -s \"https://api.github.com/repos/odriverobotics/ODriveArduino/releases\")",
+      "Bash(python3 -c \"import json,sys; releases=json.load\\(sys.stdin\\); [print\\(r['tag_name'], r['published_at']\\) for r in releases[:10]]\")",
+      "Bash(curl -s \"https://gui.odriverobotics.com/api/releases\")",
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(json.dumps\\(data, indent=2\\)[:3000]\\)\")",
+      "Bash(curl -s \"https://cdn.odriverobotics.com/odrive-micro/firmware/latest/flat_endpoints.json\")",
+      "Bash(curl -sI \"https://docs.odriverobotics.com/\")"
+    ]
+  }
+}

@@ -227,18 +227,21 @@ bool verifyI2C(){
  */
 bool verifyLED(){
     Led::setup();
-    ONToggleLED(&Led::powerLed);
-    if (digitalRead(Led::powerLed.pin) != HIGH) {
+    // Test power LED — write HIGH and confirm pin responds
+    ONToggleLED(&Led::powerLED);
+    if (digitalRead(Led::powerLED.pin) != HIGH) {
         setError(LED_ERROR);
         return false;
     }
-    ONToggleLED(&Led::dataLed);
-    if (digitalRead(Led::dataLed.pin) != HIGH) {
+    // Test data LED — write HIGH and confirm pin responds
+    ONToggleLED(&Led::dataLED);
+    if (digitalRead(Led::dataLED.pin) != HIGH) {
         setError(LED_ERROR);
         return false;
     }
-    ONToggleLED(&Led::errorLed);
-    if (digitalRead(Led::errorLed.pin) != HIGH) {
+    // Test error LED — write HIGH and confirm pin responds
+    ONToggleLED(&Led::errorLED);
+    if (digitalRead(Led::errorLED.pin) != HIGH) {
         setError(LED_ERROR);
         return false;
     }
@@ -378,16 +381,16 @@ void stopODrives(){
  * Turns off all LED indicators during shutdown sequence.
  */
 void powerOffPeripherals(){
-    OFFToggleLED(&Led::powerLed);
-    OFFToggleLED(&Led::dataLed);
-    OFFToggleLED(&Led::errorLed);
+    OFFToggleLED(&Led::powerLED);
+    OFFToggleLED(&Led::dataLED);
+    OFFToggleLED(&Led::errorLED);
 }
 
 /*
  * Turns on the error LED to visually alert the operator of a fault.
  */
 void turnOnErrorLED(){
-    ONToggleLED(&Led::errorLed);
+    ONToggleLED(&Led::errorLED);
 }
 
 /*
@@ -396,11 +399,9 @@ void turnOnErrorLED(){
  * to rerun all hardware verification before resuming operation.
  */
 void errorRecovery(){
-    clearError();
-    OFFToggleLED(&Led::errorLed);
-    resetReadyState();
-    resetHomingState();
-    currState = BOOTUP;
+    clearError();                  // reset currError to NO_ERROR
+    OFFToggleLED(&Led::errorLED);  // turn off error LED
+    currState = BOOTUP;            // restart verification from beginning
 }
 
 /*
@@ -473,20 +474,28 @@ void sendStateErrorLog() {
  */
 void stateUpdate()
 {
+    bool pwrPressed = powerButtonWasPressed();
+    if (pwrPressed && (currState != BOOTUP && currState != ERROR_STATE && currState != POWERINGOFF)) {
+        currState = POWERINGOFF;
+        return;
+    }
+
   switch (currState) {
     // Verify all hardware before allowing any operation.
     // Success: power LED on, transition to IDLE.
     // Failure: transition to ERROR_STATE.
     case BOOTUP:
-        verifyODrive();
-        // if (verifyODrive() && verifyI2C() && verifyLED()) {
-        //     ONToggleLED(&Led::powerLed);   // power LED on = system alive
-        //     OFFToggleLED(&Led::errorLed);  // ensure error LED is off
-        currState = IDLE;
-        // }
-        // else {
-        //     currState = ERROR_STATE;
-        // }
+        if (!pwrPressed) {
+            break;
+        }
+        if (verifyODrive() && verifyI2C() && verifyLED()) {
+            ONToggleLED(&Led::powerLED);   // power LED on = system alive
+            OFFToggleLED(&Led::errorLED);  // ensure error LED is off
+            currState = IDLE;
+        }
+        else {
+            currState = ERROR_STATE;
+        }
         break;
 
     // Wait for CMD_PING from host PC.
@@ -564,12 +573,8 @@ void stateUpdate()
         // entry every time READY is reached, even after error recovery.
 
         if (!enteredReady) {
-            ONToggleLED(&Led::dataLed);
-            for (int i = 0; i < NUM_JOINTS; i++) {
-                if (joints[i].use_onboard_encoder && joints[i].odrive != nullptr) {
-                    enable_velocity_control(*joints[i].odrive, *joints[i].user_data, i);
-                }
-            }
+            ONToggleLED(&Led::dataLED); // data LED on = system operational
+            // Reset integrated admittance state when entering READY to avoid step jumps.
             resetAdmittanceController();
             lastAdmittanceUs = micros();
             enteredReady = true;
@@ -733,13 +738,12 @@ void stateUpdate()
     // Safe all hardware immediately and report fault.
     // Fault is latched to avoid auto-restart loops and noisy serial output.
     case ERROR_STATE:
-    {
-        static bool errorLatched = false;
-        if (!errorLatched) {
-            stopODrives();
-            turnOnErrorLED();
-            sendStateErrorLog();
-            errorLatched = true;
+        stopODrives();          // emergency stop all motors
+        turnOnErrorLED();       // alert operator visually
+        sendStateErrorLog();       // report specific fault over Serial
+        // Wait for operator acknowledgement before attempting recovery
+        if (pwrPressed) {
+                errorRecovery();    // clear error and restart from BOOTUP
         }
         break;
     }
