@@ -743,10 +743,9 @@ void stateUpdate()
         sendStateErrorLog();       // report specific fault over Serial
         // Wait for operator acknowledgement before attempting recovery
         if (pwrPressed) {
-                errorRecovery();    // clear error and restart from BOOTUP
+            errorRecovery();    // clear error and restart from BOOTUP
         }
         break;
-    }
 
     // Unknown or corrupted state — should never be reached.
     default:
@@ -755,4 +754,4 @@ void stateUpdate()
         sendStateErrorLog();
         break;
     }
-}
+} // End of function
