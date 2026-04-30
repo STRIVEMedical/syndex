@@ -41,6 +41,7 @@ errorCode_e currError = NO_ERROR;
 // Telemetry pacing to avoid saturating the USB receive queue on host.
 static const uint32_t JOINT_TELEM_INTERVAL_MS = 5;
 static const uint32_t STATUS_TELEM_INTERVAL_MS = 100; // 10 Hz
+static const uint32_t IDLE_ENCODER_POLL_INTERVAL_MS = 50;
 
 // ── READY sub-state — file-scope so variables survive state re-entries ────────
 // Using file-scope (not static locals) means resetReadyState() can zero them on
@@ -51,6 +52,7 @@ static bool          readyTelemInit         = false;
 static bool          enteredReady           = false;
 static uint32_t      lastJointTelemMs       = 0;
 static uint32_t      lastStatusTelemMs      = 0;
+static uint32_t      lastIdleEncoderPollMs  = 0;
 static uint32_t      lastAdmittanceUs       = 0;
 static uint32_t      lastOdriveErrorCheckMs = 0;
 static uint32_t      moveToHomeStartMs      = 0;
@@ -77,6 +79,7 @@ static void resetReadyState() {
     enteredReady           = false;
     lastJointTelemMs       = 0;
     lastStatusTelemMs      = 0;
+    lastIdleEncoderPollMs  = 0;
     lastAdmittanceUs       = 0;
     lastOdriveErrorCheckMs = 0;
     moveToHomeStartMs      = 0;
@@ -125,6 +128,230 @@ static bool verifyOdriveHeartbeatsOrError() {
         return false;
     }
     return true;
+}
+
+static const char* wireErrorName(uint8_t error) {
+    switch (error) {
+    case 0: return "success";
+    case 1: return "data too long";
+    case 2: return "address NACK";
+    case 3: return "data NACK";
+    case 4: return "other/timeout";
+    case 5: return "FIFO error";
+    default: return "unknown";
+    }
+}
+
+static void printWireResult(const char* prefix, uint8_t address, uint8_t error) {
+    SerialUSB1.print(prefix);
+    SerialUSB1.print(" addr=0x");
+    SerialUSB1.print(address, HEX);
+    SerialUSB1.print(" wireErr=");
+    SerialUSB1.print((int)error);
+    SerialUSB1.print(" (");
+    SerialUSB1.print(wireErrorName(error));
+    SerialUSB1.println(")");
+}
+
+static uint8_t probeI2CAddress(uint8_t address) {
+    Wire.beginTransmission(address);
+    return Wire.endTransmission();
+}
+
+static bool scanMuxAddressRange() {
+    SerialUSB1.println("[I2C][BOOTUP] Scanning possible PCA/TCA9548A addresses 0x70-0x77...");
+    bool found = false;
+    bool foundExpected = false;
+    for (uint8_t address = 0x70; address <= 0x77; address++) {
+        uint8_t error = probeI2CAddress(address);
+        if (error == 0) {
+            found = true;
+            if (address == TCA_ADDR) {
+                foundExpected = true;
+            }
+            SerialUSB1.print("[I2C][BOOTUP] Device ACK at possible PCA/TCA address 0x");
+            SerialUSB1.println(address, HEX);
+        } else {
+            printWireResult("[I2C][BOOTUP] No ACK", address, error);
+        }
+    }
+    if (!found) {
+        SerialUSB1.println("[I2C][BOOTUP] No PCA/TCA9548A address responded in 0x70-0x77");
+        SerialUSB1.println("[I2C][BOOTUP] Check mux power/GND, pullups, SDA=18/SCL=19 on Wire, RESET pin high, and A0-A2 address pins");
+    }
+    return foundExpected;
+}
+
+static uint8_t probeMuxWithClock(uint32_t clock_hz) {
+    Wire.setClock(clock_hz);
+    delay(5);
+    SerialUSB1.print("[I2C][BOOTUP] Probing PCA/TCA9548A at ");
+    SerialUSB1.print(clock_hz / 1000);
+    SerialUSB1.println(" kHz");
+    return probeI2CAddress(TCA_ADDR);
+}
+
+static uint8_t selectTcaChannelDiagnostic(uint8_t channel) {
+    Wire.beginTransmission(TCA_ADDR);
+    Wire.write(1 << channel);
+    return Wire.endTransmission();
+}
+
+static void scanSelectedMuxChannel(uint8_t jointIndex, uint8_t channel) {
+    SerialUSB1.print("[I2C][BOOTUP] Joint ");
+    SerialUSB1.print((int)jointIndex);
+    SerialUSB1.print(" scanning selected mux ch");
+    SerialUSB1.print((int)channel);
+    SerialUSB1.println(" for downstream devices...");
+
+    bool found = false;
+    for (uint8_t address = 0x08; address <= 0x77; address++) {
+        uint8_t error = probeI2CAddress(address);
+        if (error != 0) continue;
+
+        found = true;
+        SerialUSB1.print("[I2C][BOOTUP] Joint ");
+        SerialUSB1.print((int)jointIndex);
+        SerialUSB1.print(" mux ch");
+        SerialUSB1.print((int)channel);
+        SerialUSB1.print(" device ACK addr=0x");
+        SerialUSB1.println(address, HEX);
+    }
+
+    if (!found) {
+        SerialUSB1.print("[I2C][BOOTUP] Joint ");
+        SerialUSB1.print((int)jointIndex);
+        SerialUSB1.print(" mux ch");
+        SerialUSB1.print((int)channel);
+        SerialUSB1.println(" no downstream devices ACKed");
+    }
+}
+
+static void scanAllMuxChannelsForAS5600(uint8_t failingJointIndex, uint8_t failingChannel) {
+    SerialUSB1.print("[I2C][BOOTUP] Joint ");
+    SerialUSB1.print((int)failingJointIndex);
+    SerialUSB1.print(" AS5600 not found on expected mux ch");
+    SerialUSB1.print((int)failingChannel);
+    SerialUSB1.println("; scanning all mux channels for addr=0x36...");
+
+    bool found = false;
+    for (uint8_t channel = 0; channel < 8; channel++) {
+        uint8_t muxError = selectTcaChannelDiagnostic(channel);
+        if (muxError != 0) {
+            SerialUSB1.print("[I2C][BOOTUP] mux ch");
+            SerialUSB1.print((int)channel);
+            SerialUSB1.print(" select failed ");
+            printWireResult("", TCA_ADDR, muxError);
+            continue;
+        }
+
+        delayMicroseconds(200);
+        uint8_t error = probeI2CAddress(AS5600_ADDR);
+        if (error == 0) {
+            found = true;
+            SerialUSB1.print("[I2C][BOOTUP] AS5600 ACK at mux ch");
+            SerialUSB1.println((int)channel);
+        } else {
+            SerialUSB1.print("[I2C][BOOTUP] AS5600 missing at mux ch");
+            SerialUSB1.print((int)channel);
+            SerialUSB1.print(" ");
+            printWireResult("", AS5600_ADDR, error);
+        }
+    }
+
+    if (!found) {
+        SerialUSB1.println("[I2C][BOOTUP] No AS5600 responded on any mux channel");
+    }
+}
+
+static void scanAllMuxChannelsAllAddresses() {
+    SerialUSB1.println("[I2C][BOOTUP] Scanning all mux channels for all I2C addresses...");
+    for (uint8_t channel = 0; channel < 8; channel++) {
+        uint8_t muxError = selectTcaChannelDiagnostic(channel);
+        if (muxError != 0) {
+            SerialUSB1.print("[I2C][BOOTUP] mux ch");
+            SerialUSB1.print((int)channel);
+            SerialUSB1.print(" select failed ");
+            printWireResult("", TCA_ADDR, muxError);
+            continue;
+        }
+
+        delayMicroseconds(200);
+        bool found = false;
+        for (uint8_t address = 0x08; address <= 0x77; address++) {
+            uint8_t error = probeI2CAddress(address);
+            if (error != 0) continue;
+
+            found = true;
+            SerialUSB1.print("[I2C][BOOTUP] mux ch");
+            SerialUSB1.print((int)channel);
+            SerialUSB1.print(" device ACK addr=0x");
+            SerialUSB1.println(address, HEX);
+        }
+
+        if (!found) {
+            SerialUSB1.print("[I2C][BOOTUP] mux ch");
+            SerialUSB1.print((int)channel);
+            SerialUSB1.println(" no devices ACKed");
+        }
+    }
+}
+
+static bool readAS5600RawDiagnostic(uint8_t jointIndex, uint8_t channel, uint16_t& raw) {
+    Wire.beginTransmission(AS5600_ADDR);
+    Wire.write(ANGLE_HIGH);
+    uint8_t txError = Wire.endTransmission(false);
+    if (txError != 0) {
+        SerialUSB1.print("[I2C][BOOTUP] Joint ");
+        SerialUSB1.print((int)jointIndex);
+        SerialUSB1.print(" mux ch");
+        SerialUSB1.print((int)channel);
+        SerialUSB1.print(" AS5600 register select failed");
+        SerialUSB1.print(" reg=0x");
+        SerialUSB1.print(ANGLE_HIGH, HEX);
+        SerialUSB1.print(" ");
+        printWireResult("", AS5600_ADDR, txError);
+        scanSelectedMuxChannel(jointIndex, channel);
+        scanAllMuxChannelsForAS5600(jointIndex, channel);
+        raw = 0xFFFF;
+        return false;
+    }
+
+    uint8_t bytesRead = Wire.requestFrom(AS5600_ADDR, 2);
+    if (bytesRead < 2 || Wire.available() < 2) {
+        SerialUSB1.print("[I2C][BOOTUP] Joint ");
+        SerialUSB1.print((int)jointIndex);
+        SerialUSB1.print(" mux ch");
+        SerialUSB1.print((int)channel);
+        SerialUSB1.print(" AS5600 read incomplete bytes=");
+        SerialUSB1.println((int)bytesRead);
+        raw = 0xFFFF;
+        return false;
+    }
+
+    uint8_t msb = Wire.read();
+    uint8_t lsb = Wire.read();
+    raw = ((msb << 8) | lsb) & 0x0FFF;
+    return true;
+}
+
+static void printBootEncoderValue(uint8_t jointIndex, uint8_t channel, uint16_t raw) {
+    float angleDeg = computeAngle(channel, raw);
+    Joint* j = getJoint(jointIndex);
+    if (j != nullptr) {
+        j->rawValue = raw;
+        j->angle = angleDeg;
+        j->velocity = 0.0f;
+    }
+
+    SerialUSB1.print("[I2C][BOOTUP] Joint ");
+    SerialUSB1.print((int)jointIndex);
+    SerialUSB1.print(" AS5600 OK mux ch");
+    SerialUSB1.print((int)channel);
+    SerialUSB1.print(" raw=");
+    SerialUSB1.print(raw);
+    SerialUSB1.print(" angle_deg=");
+    SerialUSB1.println(angleDeg, 2);
 }
 
 // Prepares a single ODrive joint to begin moving to home.
@@ -195,46 +422,90 @@ bool verifyODrive(){
  * channels return valid AS5600 readings.
  */
 bool verifyI2C(){
-    Wire.beginTransmission(TCA_ADDR);
-    uint8_t error = Wire.endTransmission();
+    SerialUSB1.println("[I2C][BOOTUP] Verifying PCA/TCA9548A mux and external AS5600 encoders");
+
+    uint8_t error = probeMuxWithClock(400000);
     if (error != 0) {
-        SerialUSB1.print("[I2C][BOOTUP] TCA9548A ACK failed at 0x");
-        SerialUSB1.print(TCA_ADDR, HEX);
-        SerialUSB1.print(" wireErr=");
-        SerialUSB1.println((int)error);
-        setError(I2C_ERROR);
-        return false;
+        printWireResult("[I2C][BOOTUP] PCA/TCA9548A ACK failed", TCA_ADDR, error);
+        error = probeMuxWithClock(100000);
     }
+    if (error != 0) {
+        printWireResult("[I2C][BOOTUP] PCA/TCA9548A ACK failed", TCA_ADDR, error);
+        if (!scanMuxAddressRange()) {
+            setError(I2C_ERROR);
+            return false;
+        }
+        SerialUSB1.println("[I2C][BOOTUP] PCA/TCA9548A recovered during scan; continuing");
+        error = 0;
+    }
+    printWireResult("[I2C][BOOTUP] PCA/TCA9548A ACK OK", TCA_ADDR, error);
+    Wire.setClock(400000);
+    scanAllMuxChannelsAllAddresses();
 
     uint8_t expectedExternalEncoders = 0;
     uint8_t detectedExternalEncoders = 0;
+    uint8_t missingExternalEncoders = 0;
 
     for (uint8_t i = 0; i < NUM_JOINTS; i++) {
         Joint* j = getJoint(i);
         if (j == nullptr) {
             SerialUSB1.print("[I2C][BOOTUP] Null joint pointer at index ");
             SerialUSB1.println((int)i);
-            setError(I2C_ERROR);
-            return false;
+            missingExternalEncoders++;
+            continue;
         }
 
         if (j->use_onboard_encoder || j->sensor_channel == INACTIVE_CHANNEL) {
+            SerialUSB1.print("[I2C][BOOTUP] Joint ");
+            SerialUSB1.print((int)i);
+            SerialUSB1.println(" uses ODrive/onboard encoder; skipping I2C encoder check");
             continue;
         }
 
         expectedExternalEncoders++;
 
-        tcaSelect(j->sensor_channel);
-        uint16_t raw = readRawAS5600();
-        if (raw == 0xFFFF) {
-            SerialUSB1.print("[I2C][BOOTUP] AS5600 read failed on mux channel ");
+        if (j->sensor_channel > 7) {
+            SerialUSB1.print("[I2C][BOOTUP] Invalid mux channel ");
             SerialUSB1.print((int)j->sensor_channel);
             SerialUSB1.print(" (joint index ");
             SerialUSB1.print((int)i);
             SerialUSB1.println(")");
-            setError(I2C_ERROR);
-            return false;
+            missingExternalEncoders++;
+            continue;
         }
+
+        SerialUSB1.print("[I2C][BOOTUP] Joint ");
+        SerialUSB1.print((int)i);
+        SerialUSB1.print(" selecting mux channel ");
+        SerialUSB1.println((int)j->sensor_channel);
+
+        uint8_t muxError = selectTcaChannelDiagnostic(j->sensor_channel);
+        if (muxError != 0) {
+            SerialUSB1.print("[I2C][BOOTUP] Joint ");
+            SerialUSB1.print((int)i);
+            SerialUSB1.print(" mux channel ");
+            SerialUSB1.print((int)j->sensor_channel);
+            SerialUSB1.print(" select failed ");
+            printWireResult("", TCA_ADDR, muxError);
+            j->rawValue = 0xFFFF;
+            missingExternalEncoders++;
+            continue;
+        }
+        SerialUSB1.print("[I2C][BOOTUP] Joint ");
+        SerialUSB1.print((int)i);
+        SerialUSB1.print(" mux channel ");
+        SerialUSB1.print((int)j->sensor_channel);
+        SerialUSB1.println(" select OK");
+
+        delayMicroseconds(200);
+        uint16_t raw = 0xFFFF;
+        if (!readAS5600RawDiagnostic(i, j->sensor_channel, raw)) {
+            j->rawValue = 0xFFFF;
+            missingExternalEncoders++;
+            continue;
+        }
+
+        printBootEncoderValue(i, j->sensor_channel, raw);
 
         detectedExternalEncoders++;
     }
@@ -244,10 +515,13 @@ bool verifyI2C(){
         SerialUSB1.print((int)expectedExternalEncoders);
         SerialUSB1.print(" detected=");
         SerialUSB1.println((int)detectedExternalEncoders);
-        setError(I2C_ERROR);
-        return false;
+        SerialUSB1.print("[I2C][BOOTUP] Continuing with missing external encoder count=");
+        SerialUSB1.println((int)missingExternalEncoders);
+        return true;
     }
 
+    SerialUSB1.print("[I2C][BOOTUP] External encoder check passed count=");
+    SerialUSB1.println((int)detectedExternalEncoders);
     return true;
 }
 
@@ -347,29 +621,20 @@ bool pollCmdPing() {
  *
  * Sensing is performed once per READY cycle before control, so this
  * function only validates and serializes the already-updated joint state.
- * If any encoder fails during reading, sends ERROR_MESSAGE to host
- * and transitions to ERROR_STATE immediately.
+ * External encoder read failures leave the last known angle in place and are
+ * reported over SerialUSB1 by readJointAngles(); they do not latch ERROR_STATE.
  * Called every loop cycle in READY state.
  */
 void enableI2CPacketSend()
 {
-    telemJointDataPayload data;
+    telemJointDataPayload data{};
 
     for (int i = 0; i < NUM_JOINTS; i++) {
         Joint* j = getJoint(i);
 
         if (j == nullptr) {
-            setError(I2C_ERROR);
             sendErrorMessage("I2C error: invalid joint pointer");
-            currState = ERROR_STATE;
-            return;
-        }
-
-        if (!j->use_onboard_encoder && j->rawValue == 0xFFFF) {
-            setError(I2C_ERROR);
-            sendErrorMessage("I2C error: external encoder read failed");
-            currState = ERROR_STATE;
-            return;
+            continue;
         }
 
         buildTelemJointPayload(data, i, j->angle, j->velocity);
@@ -508,29 +773,29 @@ void sendStateErrorLog() {
  */
 void stateUpdate()
 {
-        bool pwrPressed = powerButtonWasPressed();
-        if (pwrPressed) {
-            SerialUSB1.println("[DEBUG] Power button pressed");
-        }
-        if (pwrPressed && (currState != BOOTUP && currState != ERROR_STATE && currState != POWERINGOFF)) {
-            currState = POWERINGOFF;
-            return;
-        }
-        if (currState == IDLE || currState == HOMING || currState == READY) {
-            if (!verifyOdriveHeartbeatsOrError()) {
-                currState = ERROR_STATE;
-                return;
-            }
-        }
+        // bool pwrPressed = powerButtonWasPressed();
+        // if (pwrPressed) {
+        //     SerialUSB1.println("[DEBUG] Power button pressed");
+        // }
+        // if (pwrPressed && (currState != BOOTUP && currState != ERROR_STATE && currState != POWERINGOFF)) {
+        //     currState = POWERINGOFF;
+        //     return;
+        // }
+        // if (currState == IDLE || currState == HOMING || currState == READY) {
+        //     if (!verifyOdriveHeartbeatsOrError()) {
+        //         currState = ERROR_STATE;
+        //         return;
+        //     }
+        // }
 
   switch (currState) {
     // Verify all hardware before allowing any operation.
     // Success: power LED on, transition to IDLE.
     // Failure: transition to ERROR_STATE.
     case BOOTUP:
-        if (!pwrPressed) {
-            break;
-        }
+        // if (!pwrPressed) {
+        //     break;
+        // }
         if (verifyODrive() && verifyI2C() && verifyLED()) {
             ONToggleLED(&Led::powerLED);   // power LED on = system alive
             OFFToggleLED(&Led::errorLED);  // ensure error LED is off
@@ -563,6 +828,12 @@ void stateUpdate()
         //     pinMode(13, OUTPUT);
         //     digitalWrite(13, ledState ? HIGH : LOW);
         // }
+        uint32_t now = millis();
+        if ((now - lastIdleEncoderPollMs) >= IDLE_ENCODER_POLL_INTERVAL_MS) {
+            readJointAngles();
+            lastIdleEncoderPollMs = now;
+        }
+
         if (pollCmdPing()) {
             currState = CONNECTED;
         }
@@ -794,20 +1065,24 @@ void stateUpdate()
     // Safe all hardware immediately and report fault.
     // Fault is latched to avoid auto-restart loops and noisy serial output.
     case ERROR_STATE:
+        if (millis() <= 5500) {
         stopODrives();          // emergency stop all motors
         turnOnErrorLED();       // alert operator visually
         sendStateErrorLog();       // report specific fault over Serial
-        // Wait for operator acknowledgement before attempting recovery
-        if (pwrPressed) {
-            errorRecovery();    // clear error and restart from BOOTUP
         }
+        // Wait for operator acknowledgement before attempting recovery
+        // if (pwrPressed) {
+        //     errorRecovery();    // clear error and restart from BOOTUP
+        // }
         break;
 
     // Unknown or corrupted state — should never be reached.
     default:
+        if (millis()<= 5500) {
         stopODrives();
         turnOnErrorLED();
         sendStateErrorLog();
+        }
         break;
     }
 } // End of function

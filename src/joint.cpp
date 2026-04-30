@@ -2,6 +2,40 @@
 #include "comms.h"
 #include "odrive.h"
 
+static const uint32_t ENCODER_SERIAL_INTERVAL_MS = 250;
+static uint32_t lastEncoderSerialMs[NUM_JOINTS] = {0};
+
+static void printExternalEncoderValue(int jointIndex, uint8_t channel, uint16_t raw, float angleDeg) {
+    uint32_t now = millis();
+    if ((now - lastEncoderSerialMs[jointIndex]) < ENCODER_SERIAL_INTERVAL_MS) {
+        return;
+    }
+    lastEncoderSerialMs[jointIndex] = now;
+
+    SerialUSB1.print("[ENC] Joint ");
+    SerialUSB1.print(jointIndex);
+    SerialUSB1.print(" mux ch");
+    SerialUSB1.print((int)channel);
+    SerialUSB1.print(" raw=");
+    SerialUSB1.print(raw);
+    SerialUSB1.print(" angle_deg=");
+    SerialUSB1.println(angleDeg, 2);
+}
+
+static void printExternalEncoderMissing(int jointIndex, uint8_t channel) {
+    uint32_t now = millis();
+    if ((now - lastEncoderSerialMs[jointIndex]) < ENCODER_SERIAL_INTERVAL_MS) {
+        return;
+    }
+    lastEncoderSerialMs[jointIndex] = now;
+
+    SerialUSB1.print("[ENC][WARN] Joint ");
+    SerialUSB1.print(jointIndex);
+    SerialUSB1.print(" mux ch");
+    SerialUSB1.print((int)channel);
+    SerialUSB1.println(" AS5600 read failed");
+}
+
 
 
 
@@ -75,12 +109,12 @@ void readJointAngles(){
             uint16_t raw  = readRawAS5600();
             joints[i].rawValue = raw;
             if (raw != 0xFFFF) {
-                joints[i].angle = computeAngle(i, raw);
+                joints[i].angle = computeAngle(joints[i].sensor_channel, raw);
                 joints[i].velocity = 0.0f;
+                printExternalEncoderValue(i, joints[i].sensor_channel, raw, joints[i].angle);
             } else {
-            // SerialUSB1.print("[WARN] AS5600 read failed on channel ");
-            // SerialUSB1.println((int)joints[i].sensor_channel);
-            // joints[i].velocity = 0.0f;
+                joints[i].velocity = 0.0f;
+                printExternalEncoderMissing(i, joints[i].sensor_channel);
             }
         }
     }

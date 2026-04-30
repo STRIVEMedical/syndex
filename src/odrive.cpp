@@ -364,12 +364,14 @@ bool printOdriveError(ODriveCAN* odrv, uint8_t node_id) {
     return false;
   }
 
-  SerialUSB1.print("[ODRIVE][ERROR] Node ");
+  bool healthy = error_msg.Active_Errors == 0 && error_msg.Disarm_Reason == 0;
+
+  SerialUSB1.print(healthy ? "[ODRIVE][STATUS] Node " : "[ODRIVE][ERROR] Node ");
   SerialUSB1.print(node_id);
   SerialUSB1.print(" active=0x");
   SerialUSB1.print(error_msg.Active_Errors, HEX);
   SerialUSB1.print(" disarm=0x");
   SerialUSB1.println(error_msg.Disarm_Reason, HEX);
 
-  return error_msg.Active_Errors == 0 && error_msg.Disarm_Reason == 0;
+  return healthy;
 }
