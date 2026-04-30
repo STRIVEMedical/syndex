@@ -319,8 +319,8 @@ void sendErrorMessage(const char* message) {
 }
 
 void buildTelemJointPayload(telemJointDataPayload& payload, int jointID, float angleDeg, float velocityDegPerSec) {
-	payload.joints[jointID].jnAngle = float16ToUnsigned16(angleDeg);
-	payload.joints[jointID].jnVelocity = float16ToUnsigned16(velocityDegPerSec);
+	payload.joints[jointID].jnAngle = angleDeg;
+	payload.joints[jointID].jnVelocity = velocityDegPerSec;
 }
 
 packet::packet() {
