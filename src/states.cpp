@@ -95,6 +95,38 @@ static void resetHomingState() {
     homingTimerStarted = false;
 }
 
+/* Terminates immediately, returning FALSE if target ODrive is providing valid connection.
+    Otherwise, prints failing node to terminal with invalid connection's info */
+static bool reportOdriveHeartbeatFault(const ODriveUserData& data, uint8_t node_id, uint32_t now_ms) {
+    if (odriveHeartbeatFresh(data, now_ms)) {
+        return false;
+    }
+
+    SerialUSB1.print("[ODRIVE] Node ");
+    SerialUSB1.print(node_id);
+    if (data.received_heartbeat) {
+        SerialUSB1.print(" heartbeat stale, age_ms=");
+        SerialUSB1.println(static_cast<uint32_t>(now_ms - data.last_heartbeat_ms));
+    } else {
+        SerialUSB1.println(" heartbeat never received");
+    }
+    return true;
+}
+
+static bool verifyOdriveHeartbeatsOrError() {
+    uint32_t now = millis();
+    bool fault = false;
+    fault |= reportOdriveHeartbeatFault(odrv0_user_data, 0, now);
+    fault |= reportOdriveHeartbeatFault(odrv1_user_data, 1, now);
+    fault |= reportOdriveHeartbeatFault(odrv2_user_data, 2, now);
+
+    if (fault) {
+        setError(ODRIVE_ERROR);
+        return false;
+    }
+    return true;
+}
+
 // Prepares a single ODrive joint to begin moving to home.
 // Called once per joint at the start of its homing turn.
 static void setupJointForHoming(int i) {
@@ -226,7 +258,6 @@ bool verifyI2C(){
  * Returns true if all three LEDs respond correctly, false if any fail.
  */
 bool verifyLED(){
-    Led::setup();
     // Test power LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::powerLED);
     int powerVal = digitalRead(Led::powerLED.pin);
@@ -272,14 +303,7 @@ bool verifyUSB(){
 
 // Checks whether the ODrive comms are online
 bool verifyODriveComms(){
-    if (
-        !odrv0_user_data.received_heartbeat ||
-        !odrv1_user_data.received_heartbeat ||
-        !odrv2_user_data.received_heartbeat) {
-        setError(ODRIVE_ERROR);
-        return false;
-    }
-    return true;
+    return verifyOdriveHeartbeatsOrError();
 }
 
 /*
@@ -363,11 +387,7 @@ void enableODrivePacketSend()
 {
     telemStatusPayload status{};
 
-    if (
-        !odrv0_user_data.received_heartbeat ||
-        !odrv1_user_data.received_heartbeat ||
-        !odrv2_user_data.received_heartbeat) {
-        setError(ODRIVE_ERROR);
+    if (!verifyOdriveHeartbeatsOrError()) {
         packet errPacket(ERROR_MESSAGE);
         std::vector<uint8_t> errBuffer = errPacket.serialize();
         Serial.write(errBuffer.data(), errBuffer.size());
@@ -495,6 +515,12 @@ void stateUpdate()
         if (pwrPressed && (currState != BOOTUP && currState != ERROR_STATE && currState != POWERINGOFF)) {
             currState = POWERINGOFF;
             return;
+        }
+        if (currState == IDLE || currState == HOMING || currState == READY) {
+            if (!verifyOdriveHeartbeatsOrError()) {
+                currState = ERROR_STATE;
+                return;
+            }
         }
 
   switch (currState) {
@@ -652,7 +678,7 @@ void stateUpdate()
                 allDone = false;
 
                 // If the ODrive disarmed mid-move, clear the fault and re-enter closed loop.
-                bool armed = joints[i].user_data->received_heartbeat &&
+                bool armed = odriveHeartbeatFresh(*joints[i].user_data, millis()) &&
                              joints[i].user_data->last_heartbeat.Axis_State == 8;
                 if (!armed) {
                     SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
@@ -666,7 +692,7 @@ void stateUpdate()
                     float cur_pos = joints[i].user_data->last_feedback.Pos_Estimate;
                     joints[i].odrive->setPosition(cur_pos, 0.0f, 0.0f);
                     pumpEvents(can_intf);
-                    bool reArmed = joints[i].user_data->received_heartbeat &&
+                    bool reArmed = odriveHeartbeatFresh(*joints[i].user_data, millis()) &&
                                    joints[i].user_data->last_heartbeat.Axis_State == 8;
                     SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
                     SerialUSB1.println(reArmed ? " re-armed OK" : " re-arm FAILED — will retry");
@@ -740,6 +766,9 @@ void stateUpdate()
 
         if ((now - lastStatusTelemMs) >= STATUS_TELEM_INTERVAL_MS) {
             enableODrivePacketSend();
+            if (currState == ERROR_STATE) {
+                break;
+            }
             lastStatusTelemMs = now;
         }
 

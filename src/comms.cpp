@@ -163,6 +163,7 @@ void onHeartbeat(Heartbeat_msg_t& msg, void* user_data) {
   ODriveUserData* ud = (ODriveUserData*)user_data;
   ud->last_heartbeat = msg;
   ud->received_heartbeat = true;
+  ud->last_heartbeat_ms = millis();
 }
 
 /**
