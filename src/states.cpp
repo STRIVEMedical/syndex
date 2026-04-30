@@ -298,10 +298,10 @@ bool allConnectionsReady()
         setError(ODRIVE_ERROR);
         return false;
     }
-    // if (!verifyI2C()) {
-    //     setError(I2C_ERROR);
-    //     return false;
-    // }
+    if (!verifyI2C()) {
+        setError(I2C_ERROR);
+        return false;
+    }
     return true;
 }
 
@@ -341,12 +341,12 @@ void enableI2CPacketSend()
             return;
         }
 
-        // if (!j->use_onboard_encoder && j->rawValue == 0xFFFF) {
-        //     setError(I2C_ERROR);
-        //     sendErrorMessage("I2C error: external encoder read failed");
-        //     currState = ERROR_STATE;
-        //     return;
-        // }
+        if (!j->use_onboard_encoder && j->rawValue == 0xFFFF) {
+            setError(I2C_ERROR);
+            sendErrorMessage("I2C error: external encoder read failed");
+            currState = ERROR_STATE;
+            return;
+        }
 
         buildTelemJointPayload(data, i, j->angle, j->velocity);
     }
@@ -505,12 +505,7 @@ void stateUpdate()
         if (!pwrPressed) {
             break;
         }
-        // if (verifyODrive() && verifyI2C() && verifyLED()) {
-        //     ONToggleLED(&Led::powerLED);   // power LED on = system alive
-        //     OFFToggleLED(&Led::errorLED);  // ensure error LED is off
-        //     currState = IDLE;
-        // }
-        if (verifyODrive() && verifyLED()) {
+        if (verifyODrive() && verifyI2C() && verifyLED()) {
             ONToggleLED(&Led::powerLED);   // power LED on = system alive
             OFFToggleLED(&Led::errorLED);  // ensure error LED is off
             currState = IDLE;
