@@ -68,7 +68,7 @@ static const float    HOME_TOL                    = 0.3f;
 // without affecting admittance. HOMING_VEL_LIMIT caps approach speed for safety.
 static const float    HOMING_VEL_LIMIT            = 10.0f;   // vel_limit (t/s) during position-control homing
 static const uint32_t MOVE_TO_HOME_TIMEOUT_MS     = 30000;  // 30 s per joint
-static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 10000;
+static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 100000;
 static const uint32_t HOMING_LOG_INTERVAL_MS      = 500;
 
 static void resetReadyState() {
@@ -229,19 +229,31 @@ bool verifyLED(){
     Led::setup();
     // Test power LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::powerLED);
-    if (digitalRead(Led::powerLED.pin) != HIGH) {
+    int powerVal = digitalRead(Led::powerLED.pin);
+    SerialUSB1.print("[DEBUG] Power LED pin read: ");
+    SerialUSB1.println(powerVal);
+    if (powerVal != HIGH) {
+        SerialUSB1.println("[DEBUG] Power LED verification failed");
         setError(LED_ERROR);
         return false;
     }
     // Test data LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::dataLED);
-    if (digitalRead(Led::dataLED.pin) != HIGH) {
+    int dataVal = digitalRead(Led::dataLED.pin);
+    SerialUSB1.print("[DEBUG] Data LED pin read: ");
+    SerialUSB1.println(dataVal);
+    if (dataVal != HIGH) {
+        SerialUSB1.println("[DEBUG] Data LED verification failed");
         setError(LED_ERROR);
         return false;
     }
     // Test error LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::errorLED);
-    if (digitalRead(Led::errorLED.pin) != HIGH) {
+    int errorVal = digitalRead(Led::errorLED.pin);
+    SerialUSB1.print("[DEBUG] Error LED pin read: ");
+    SerialUSB1.println(errorVal);
+    if (errorVal != HIGH) {
+        SerialUSB1.println("[DEBUG] Error LED verification failed");
         setError(LED_ERROR);
         return false;
     }
@@ -390,6 +402,7 @@ void powerOffPeripherals(){
  * Turns on the error LED to visually alert the operator of a fault.
  */
 void turnOnErrorLED(){
+    SerialUSB1.println("[DEBUG] turnOnErrorLED() called");
     ONToggleLED(&Led::errorLED);
 }
 
@@ -409,6 +422,7 @@ void errorRecovery(){
  */
 void setError(errorCode_e err) {
     currError = err;
+    turnOnErrorLED();
 }
 
 /*
@@ -474,11 +488,14 @@ void sendStateErrorLog() {
  */
 void stateUpdate()
 {
-    bool pwrPressed = powerButtonWasPressed();
-    if (pwrPressed && (currState != BOOTUP && currState != ERROR_STATE && currState != POWERINGOFF)) {
-        currState = POWERINGOFF;
-        return;
-    }
+        bool pwrPressed = powerButtonWasPressed();
+        if (pwrPressed) {
+            SerialUSB1.println("[DEBUG] Power button pressed");
+        }
+        if (pwrPressed && (currState != BOOTUP && currState != ERROR_STATE && currState != POWERINGOFF)) {
+            currState = POWERINGOFF;
+            return;
+        }
 
   switch (currState) {
     // Verify all hardware before allowing any operation.
@@ -488,7 +505,12 @@ void stateUpdate()
         if (!pwrPressed) {
             break;
         }
-        if (verifyODrive() && verifyI2C() && verifyLED()) {
+        // if (verifyODrive() && verifyI2C() && verifyLED()) {
+        //     ONToggleLED(&Led::powerLED);   // power LED on = system alive
+        //     OFFToggleLED(&Led::errorLED);  // ensure error LED is off
+        //     currState = IDLE;
+        // }
+        if (verifyODrive() && verifyLED()) {
             ONToggleLED(&Led::powerLED);   // power LED on = system alive
             OFFToggleLED(&Led::errorLED);  // ensure error LED is off
             currState = IDLE;
@@ -502,14 +524,24 @@ void stateUpdate()
     // PING received: transition to CONNECTED. (Pong is sent in handlePing)
     case IDLE:
     {
-        static uint32_t lastIdleErrorCheckMs = 0;
-        if ((millis() - lastIdleErrorCheckMs) >= 2000) {
-            pumpEvents(can_intf);
-            printOdriveError(&odrv0, 0);
-            printOdriveError(&odrv1, 1);
-            printOdriveError(&odrv2, 2);
-            lastIdleErrorCheckMs = millis();
-        }
+        // static uint32_t lastIdleErrorCheckMs = 0;
+        // if ((millis() - lastIdleErrorCheckMs) >= 5000) {
+        //     pumpEvents(can_intf);
+        //     printOdriveError(&odrv0, 0);
+        //     printOdriveError(&odrv1, 1);
+        //     printOdriveError(&odrv2, 2);
+        //     lastIdleErrorCheckMs = millis();
+        // }
+        // Simple blink test for pin 13 (error LED/onboard LED)
+        // static uint32_t lastBlinkMs = 0;
+        // static bool ledState = false;
+        // uint32_t nowBlink = millis();
+        // if (nowBlink - lastBlinkMs > 500) { // 500ms interval
+        //     lastBlinkMs = nowBlink;
+        //     ledState = !ledState;
+        //     pinMode(13, OUTPUT);
+        //     digitalWrite(13, ledState ? HIGH : LOW);
+        // }
         if (pollCmdPing()) {
             currState = CONNECTED;
         }

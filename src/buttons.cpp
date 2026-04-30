@@ -19,7 +19,8 @@ static int pollEdge(button_t* b, DebouncedButton& db) {
     if ((now - db.lastDebounceTime) > db.debounceDelay) {
         if (reading != db.stableState) {
             db.stableState = reading;
-            return (db.stableState == LOW) ? 1 : -1;
+            // Invert logic: treat HIGH as pressed
+            return (db.stableState == HIGH) ? 1 : -1;
         }
     }
     return 0;
