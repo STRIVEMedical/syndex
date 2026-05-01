@@ -124,12 +124,16 @@ void triggerPulled(button_t* b) {
 
     if (depth > 0.01f) {
         if (!wasPressed) {
-            Serial.println("Trigger Pressed");
+            Serial.print("[TRIGGER] PRESSED  depth=");
+            Serial.println(depth, 3);
+            SerialUSB1.print("[TRIGGER] PRESSED  depth=");
+            SerialUSB1.println(depth, 3);
             wasPressed = true;
         }
     } else {
         if (wasPressed) {
-            Serial.println("Trigger Released");
+            Serial.println("[TRIGGER] RELEASED");
+            SerialUSB1.println("[TRIGGER] RELEASED");
             wasPressed = false;
         }
     }

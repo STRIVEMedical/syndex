@@ -325,11 +325,15 @@ bool initMultiOdrives() {
  * @note Immediately disables all motors and sets system to safe state
  */
 void emergencyStop() {
+  static bool printed = false;
   for (auto odrive : odrives) {
     odrive->setState(ODriveAxisState::AXIS_STATE_IDLE);
     odrive->setTorque(0.0);
   }
-  SerialUSB1.println("[SAFETY] Emergency stop asserted");
+  if (!printed) {
+    SerialUSB1.println("[SAFETY] Emergency stop asserted");
+    printed = true;
+  }
 }
 
 

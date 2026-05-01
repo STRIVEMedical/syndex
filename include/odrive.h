@@ -27,7 +27,7 @@ struct ODriveUserData {
   bool received_iq_current = false;
 };
 
-static const uint32_t ODRIVE_HEARTBEAT_TIMEOUT_MS = 500;
+static const uint32_t ODRIVE_HEARTBEAT_TIMEOUT_MS = 5000;
 static const uint32_t ODRIVE_INIT_HEARTBEAT_TIMEOUT_MS = 3000;
 
 

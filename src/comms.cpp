@@ -100,6 +100,7 @@ for debugging or streaming encoder data to a host
 void setupI2C() {
   Wire.begin();          // SDA=18, SCL=19
   Wire.setClock(400000);
+  Wire.setTimeout(10); // 10 ms timeout so a missing sensor doesn't block the loop
 }
 
 
