@@ -112,8 +112,10 @@ void testPowerButton(button_t* b) {
 /* ========== TRIGGER CODE ========== */
 
 float getTriggerDepth(button_t* b) {
-    int rawValue = constrain(analogRead(b->pin), TRIGGER_MIN_ADC, TRIGGER_MAX_ADC);
-    return (float)(rawValue - TRIGGER_MIN_ADC) / (TRIGGER_MAX_ADC - TRIGGER_MIN_ADC);
+    int rawValue = analogRead(b->pin);
+    float depth = (float)(constrain(rawValue, TRIGGER_MIN_ADC, TRIGGER_MAX_ADC) - TRIGGER_MIN_ADC) / (TRIGGER_MAX_ADC - TRIGGER_MIN_ADC);
+
+    return depth;
 }
 
 void triggerPulled(button_t* b) {
@@ -121,18 +123,18 @@ void triggerPulled(button_t* b) {
     static bool wasPressed = false;
 
     float depth = getTriggerDepth(b);
-
+    SerialUSB1.print("[TRIGGER DEBUG] depth=");
+    SerialUSB1.print(depth, 3);
+    SerialUSB1.print(" wasPressed=");
+    SerialUSB1.println(wasPressed ? "true" : "false");
     if (depth > 0.01f) {
         if (!wasPressed) {
-            Serial.print("[TRIGGER] PRESSED  depth=");
-            Serial.println(depth, 3);
             SerialUSB1.print("[TRIGGER] PRESSED  depth=");
             SerialUSB1.println(depth, 3);
             wasPressed = true;
         }
     } else {
         if (wasPressed) {
-            Serial.println("[TRIGGER] RELEASED");
             SerialUSB1.println("[TRIGGER] RELEASED");
             wasPressed = false;
         }

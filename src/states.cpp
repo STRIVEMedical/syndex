@@ -559,6 +559,8 @@ void stateUpdate()
     // PING received: transition to CONNECTED. (Pong is sent in handlePing)
     case IDLE:
     {
+        triggerPulled(&buttonPins::triggerInput); // Add here for testing
+
         if (pollCmdPing()) {
             currState = CONNECTED;
         }
@@ -777,6 +779,8 @@ void stateUpdate()
             printOdriveError(&odrv2, 2);
             lastOdriveErrorCheckMs = now;
         }
+        triggerPulled(&buttonPins::triggerInput); // Add here for testing
+        
         break;
     }
 

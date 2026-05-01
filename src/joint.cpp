@@ -74,7 +74,7 @@ void readJointAngles(){
             uint16_t raw  = readRawAS5600();
             joints[i].rawValue = raw;
             if (raw != 0xFFFF) {
-                joints[i].angle = computeAngle(i, raw);
+                joints[i].angle = computeAngle(joints[i].sensor_channel, raw);
                 joints[i].velocity = 0.0f;
             } else {
                 SerialUSB1.print("[WARN] AS5600 read failed on channel ");
