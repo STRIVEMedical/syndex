@@ -6,7 +6,9 @@
 namespace buttonPins {
     button_t powerButton = {37, INPUT, HIGH, HIGH};
     button_t toolSelect  = {39, INPUT, HIGH, HIGH};
-    button_t triggerInput = {40, INPUT, HIGH, HIGH};
+    // INPUT_PULLUP: pin rests at 3.3V. Wiring: one switch wire to pin 40,
+    // other wire to GND. Unpressed = HIGH (~20kΩ switch + pullup), Pressed = LOW (<30Ω to GND).
+    button_t triggerInput = {40, INPUT_PULLUP, HIGH, HIGH};
 }
 
 static int pollEdge(button_t* b, DebouncedButton& db) {
@@ -110,33 +112,48 @@ void testPowerButton(button_t* b) {
 }
 
 /* ========== TRIGGER CODE ========== */
+// C3AW-1A-8F is a snap-action switch (boolean only — no analog depth).
+// Wiring: one wire to pin 40, other wire to GND.
+// Pin configured INPUT_PULLUP → Unpressed = HIGH, Pressed = LOW (active-low).
 
+// Legacy analog stub kept so callers that reference getTriggerDepth() still compile.
+// Always returns 0.0 — use isTriggerPressed() for the real reading.
 float getTriggerDepth(button_t* b) {
-    int rawValue = analogRead(b->pin);
-    float depth = (float)(constrain(rawValue, TRIGGER_MIN_ADC, TRIGGER_MAX_ADC) - TRIGGER_MIN_ADC) / (TRIGGER_MAX_ADC - TRIGGER_MIN_ADC);
+    (void)b;
+    return 0.0f;
+}
 
-    return depth;
+// Returns true while the trigger is held (debounced, active-low).
+bool isTriggerPressed(button_t* b) {
+    static int  lastReading       = HIGH;
+    static int  stableState       = HIGH;
+    static unsigned long lastDebounceTime = 0;
+    const  unsigned long DEBOUNCE_MS      = 20;
+
+    int reading = digitalRead(b->pin);
+    if (reading != lastReading) {
+        lastDebounceTime = millis();
+    }
+    lastReading = reading;
+
+    if ((millis() - lastDebounceTime) > DEBOUNCE_MS) {
+        stableState = reading;
+    }
+
+    return (stableState == LOW);   // LOW = switch closed = pressed
 }
 
 void triggerPulled(button_t* b) {
-
     static bool wasPressed = false;
 
-    float depth = getTriggerDepth(b);
-    SerialUSB1.print("[TRIGGER DEBUG] depth=");
-    SerialUSB1.print(depth, 3);
-    SerialUSB1.print(" wasPressed=");
-    SerialUSB1.println(wasPressed ? "true" : "false");
-    if (depth > 0.01f) {
-        if (!wasPressed) {
-            SerialUSB1.print("[TRIGGER] PRESSED  depth=");
-            SerialUSB1.println(depth, 3);
-            wasPressed = true;
-        }
-    } else {
-        if (wasPressed) {
-            SerialUSB1.println("[TRIGGER] RELEASED");
-            wasPressed = false;
-        }
+    bool pressed = isTriggerPressed(b);
+
+    if (pressed && !wasPressed) {
+        SerialUSB1.print("[TRIGGER] PRESSED  pin=");
+        SerialUSB1.println(b->pin);
+        wasPressed = true;
+    } else if (!pressed && wasPressed) {
+        SerialUSB1.println("[TRIGGER] RELEASED");
+        wasPressed = false;
     }
 }
