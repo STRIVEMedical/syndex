@@ -338,6 +338,10 @@ void enableI2CPacketSend()
 
         buildTelemJointPayload(data, i, j->angle, j->velocity);
     }
+
+    float trigDepth = getTriggerDepth(&buttonPins::triggerInput);
+    data.triggerPressed = (trigDepth > 0.5f) ? 0xFF : 0x00;
+
     sendTelemJointData(data);
 }
 
