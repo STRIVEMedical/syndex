@@ -16,6 +16,9 @@ void setup() {
     Serial.begin(115200);
     SerialUSB1.begin(115200);
 
+    // Guarantee LEDs configure
+    Led::setup();
+
     // Give USB stack time to fully enumerate BOTH ports
     // 2000ms is conservative but reliable for dual serial
     delay(2000);

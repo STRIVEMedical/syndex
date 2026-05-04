@@ -25,7 +25,7 @@ joint # |  Odrv/enc
 //              home_vel_gain, home_vel_int_gain, label, angle, rawValue, velocity, is_homed, target_torque
 Joint joints[NUM_JOINTS] = {
     // odrive  user_data         sensor_ch         max_t  home   onboard  home_vg  home_vi  label      angle  raw  vel    homed  target_t
-    { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.01f,   0.005f,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.01f,   0.005f,  "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
     { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.03f,   0.0f,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
     { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.03f,   0.0f,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
     { nullptr, nullptr,          3,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH3", 0.0f,  0,   0.0f,  false, 0.0f },
@@ -67,7 +67,6 @@ void readJointAngles(){
             float velocity_est = joints[i].user_data->last_feedback.Vel_Estimate;
             joints[i].angle = turns * 360.0f;
             joints[i].velocity = velocity_est;
-
         }else{
             //Joint reads from external encoder
             tcaSelect(joints[i].sensor_channel);
@@ -75,15 +74,24 @@ void readJointAngles(){
             uint16_t raw  = readRawAS5600();
             joints[i].rawValue = raw;
             if (raw != 0xFFFF) {
-                joints[i].angle = computeAngle(i, raw);
+                joints[i].angle = computeAngle(joints[i].sensor_channel, raw);
                 joints[i].velocity = 0.0f;
             } else {
-            // SerialUSB1.print("[WARN] AS5600 read failed on channel ");
-            // SerialUSB1.println((int)joints[i].sensor_channel);
-            // joints[i].velocity = 0.0f;
+                SerialUSB1.print("[WARN] AS5600 read failed on channel ");
+                SerialUSB1.println((int)joints[i].sensor_channel);
+                joints[i].velocity = 0.0f;
             }
+            pumpEvents(can_intf); // keep CAN heartbeats alive between I2C reads
         }
     }
+    // Print all joint angles side by side
+    SerialUSB1.print("[DEBUG] Joint angles: ");
+    for(int i = 0; i < NUM_JOINTS; i++){
+        SerialUSB1.print(joints[i].angle, 4);
+        if(i < NUM_JOINTS - 1) SerialUSB1.print(" | ");
+    }
+    SerialUSB1.println();
+    delay(100); // Small delay for readability
 }
 
 

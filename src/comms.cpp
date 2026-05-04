@@ -100,6 +100,7 @@ for debugging or streaming encoder data to a host
 void setupI2C() {
   Wire.begin();          // SDA=18, SCL=19
   Wire.setClock(400000);
+  Wire.setTimeout(10); // 10 ms timeout so a missing sensor doesn't block the loop
 }
 
 
@@ -163,6 +164,7 @@ void onHeartbeat(Heartbeat_msg_t& msg, void* user_data) {
   ODriveUserData* ud = (ODriveUserData*)user_data;
   ud->last_heartbeat = msg;
   ud->received_heartbeat = true;
+  ud->last_heartbeat_ms = millis();
 }
 
 /**

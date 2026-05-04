@@ -50,8 +50,9 @@ namespace Buttons {
 
 void ToolCycleButton(button_t* b);
 void testPowerButton(button_t* b);
-float getTriggerDepth(button_t* b);
-void triggerPulled(button_t* b);
+float getTriggerDepth(button_t* b);   // stub — always 0.0, switch is boolean only
+bool  isTriggerPressed(button_t* b);  // true while trigger is held (debounced, active-low)
+void  triggerPulled(button_t* b);     // logs PRESSED/RELEASED edges to SerialUSB1
 bool powerButtonWasPressed();
 
 #endif

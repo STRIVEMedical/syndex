@@ -52,8 +52,8 @@ struct setOdriveStatePayload {
 };
 
 struct jointTarget {
-  uint16_t jnTargetVelocity;
-  uint16_t jnTargetTorqueFF;
+  float jnTargetVelocity;
+  float jnTargetTorqueFF;
 }; // Represeted as 16-bit floats in USB.cpp (Uses Float16 Conversion Functions).
    //Converted to unsigned16 before sending, converted back to float16 after recieving
 
@@ -68,8 +68,8 @@ struct setJointParameterPayload {
 };
 
 struct jointData {
-  uint16_t jnAngle;
-  uint16_t jnVelocity;
+  float jnAngle;
+  float jnVelocity;
 }; // Represented as 16-bit floats in USB.cpp (Uses Float16 Conversion Functions)
   //Converted to unsigned16 before sending, converted back to float16 after recieving
 

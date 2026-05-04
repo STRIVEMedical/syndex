@@ -39,6 +39,9 @@ state_e currState = BOOTUP;
 errorCode_e currError = NO_ERROR;
 
 // Telemetry pacing to avoid saturating the USB receive queue on host.
+// Track last failing encoder channel and joint index for I2C errors
+static int lastI2CFailChannel = -1;
+static int lastI2CFailJointIndex = -1;
 static const uint32_t JOINT_TELEM_INTERVAL_MS = 5;
 static const uint32_t STATUS_TELEM_INTERVAL_MS = 100; // 10 Hz
 
@@ -68,7 +71,7 @@ static const float    HOME_TOL                    = 0.3f;
 // without affecting admittance. HOMING_VEL_LIMIT caps approach speed for safety.
 static const float    HOMING_VEL_LIMIT            = 10.0f;   // vel_limit (t/s) during position-control homing
 static const uint32_t MOVE_TO_HOME_TIMEOUT_MS     = 30000;  // 30 s per joint
-static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 10000;
+static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 10000000;
 static const uint32_t HOMING_LOG_INTERVAL_MS      = 500;
 
 static void resetReadyState() {
@@ -93,6 +96,38 @@ static const uint32_t HOMING_TIMEOUT_MS = 300000UL; // 5-minute operator timeout
 static void resetHomingState() {
     homingEnteredMs    = 0;
     homingTimerStarted = false;
+}
+
+/* Terminates immediately, returning FALSE if target ODrive is providing valid connection.
+    Otherwise, prints failing node to terminal with invalid connection's info */
+static bool reportOdriveHeartbeatFault(const ODriveUserData& data, uint8_t node_id, uint32_t now_ms) {
+    if (odriveHeartbeatFresh(data, now_ms)) {
+        return false;
+    }
+
+    SerialUSB1.print("[ODRIVE] Node ");
+    SerialUSB1.print(node_id);
+    if (data.received_heartbeat) {
+        SerialUSB1.print(" heartbeat stale, age_ms=");
+        SerialUSB1.println(static_cast<uint32_t>(now_ms - data.last_heartbeat_ms));
+    } else {
+        SerialUSB1.println(" heartbeat never received");
+    }
+    return true;
+}
+
+static bool verifyOdriveHeartbeatsOrError() {
+    uint32_t now = millis();
+    bool fault = false;
+    fault |= reportOdriveHeartbeatFault(odrv0_user_data, 0, now);
+    fault |= reportOdriveHeartbeatFault(odrv1_user_data, 1, now);
+    fault |= reportOdriveHeartbeatFault(odrv2_user_data, 2, now);
+
+    if (fault) {
+        setError(ODRIVE_ERROR);
+        return false;
+    }
+    return true;
 }
 
 // Prepares a single ODrive joint to begin moving to home.
@@ -170,6 +205,8 @@ bool verifyI2C(){
         SerialUSB1.print(TCA_ADDR, HEX);
         SerialUSB1.print(" wireErr=");
         SerialUSB1.println((int)error);
+        lastI2CFailChannel = -1;
+        lastI2CFailJointIndex = -1;
         setError(I2C_ERROR);
         return false;
     }
@@ -200,6 +237,8 @@ bool verifyI2C(){
             SerialUSB1.print(" (joint index ");
             SerialUSB1.print((int)i);
             SerialUSB1.println(")");
+            lastI2CFailChannel = j->sensor_channel;
+            lastI2CFailJointIndex = i;
             setError(I2C_ERROR);
             return false;
         }
@@ -226,22 +265,33 @@ bool verifyI2C(){
  * Returns true if all three LEDs respond correctly, false if any fail.
  */
 bool verifyLED(){
-    Led::setup();
     // Test power LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::powerLED);
-    if (digitalRead(Led::powerLED.pin) != HIGH) {
+    int powerVal = digitalRead(Led::powerLED.pin);
+    SerialUSB1.print("[DEBUG] Power LED pin read: ");
+    SerialUSB1.println(powerVal);
+    if (powerVal != HIGH) {
+        SerialUSB1.println("[DEBUG] Power LED verification failed");
         setError(LED_ERROR);
         return false;
     }
     // Test data LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::dataLED);
-    if (digitalRead(Led::dataLED.pin) != HIGH) {
+    int dataVal = digitalRead(Led::dataLED.pin);
+    SerialUSB1.print("[DEBUG] Data LED pin read: ");
+    SerialUSB1.println(dataVal);
+    if (dataVal != HIGH) {
+        SerialUSB1.println("[DEBUG] Data LED verification failed");
         setError(LED_ERROR);
         return false;
     }
     // Test error LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::errorLED);
-    if (digitalRead(Led::errorLED.pin) != HIGH) {
+    int errorVal = digitalRead(Led::errorLED.pin);
+    SerialUSB1.print("[DEBUG] Error LED pin read: ");
+    SerialUSB1.println(errorVal);
+    if (errorVal != HIGH) {
+        SerialUSB1.println("[DEBUG] Error LED verification failed");
         setError(LED_ERROR);
         return false;
     }
@@ -260,14 +310,7 @@ bool verifyUSB(){
 
 // Checks whether the ODrive comms are online
 bool verifyODriveComms(){
-    if (
-        !odrv0_user_data.received_heartbeat ||
-        !odrv1_user_data.received_heartbeat ||
-        !odrv2_user_data.received_heartbeat) {
-        setError(ODRIVE_ERROR);
-        return false;
-    }
-    return true;
+    return verifyOdriveHeartbeatsOrError();
 }
 
 /*
@@ -286,10 +329,10 @@ bool allConnectionsReady()
         setError(ODRIVE_ERROR);
         return false;
     }
-    // if (!verifyI2C()) {
-    //     setError(I2C_ERROR);
-    //     return false;
-    // }
+    if (!verifyI2C()) {
+        setError(I2C_ERROR);
+        return false;
+    }
     return true;
 }
 
@@ -329,12 +372,12 @@ void enableI2CPacketSend()
             return;
         }
 
-        // if (!j->use_onboard_encoder && j->rawValue == 0xFFFF) {
-        //     setError(I2C_ERROR);
-        //     sendErrorMessage("I2C error: external encoder read failed");
-        //     currState = ERROR_STATE;
-        //     return;
-        // }
+        if (!j->use_onboard_encoder && j->rawValue == 0xFFFF) {
+            setError(I2C_ERROR);
+            sendErrorMessage("I2C error: external encoder read failed");
+            currState = ERROR_STATE;
+            return;
+        }
 
         buildTelemJointPayload(data, i, j->angle, j->velocity);
     }
@@ -355,11 +398,7 @@ void enableODrivePacketSend()
 {
     telemStatusPayload status{};
 
-    if (
-        !odrv0_user_data.received_heartbeat ||
-        !odrv1_user_data.received_heartbeat ||
-        !odrv2_user_data.received_heartbeat) {
-        setError(ODRIVE_ERROR);
+    if (!verifyOdriveHeartbeatsOrError()) {
         packet errPacket(ERROR_MESSAGE);
         std::vector<uint8_t> errBuffer = errPacket.serialize();
         Serial.write(errBuffer.data(), errBuffer.size());
@@ -413,6 +452,7 @@ void errorRecovery(){
  */
 void setError(errorCode_e err) {
     currError = err;
+    turnOnErrorLED();
 }
 
 /*
@@ -446,7 +486,15 @@ void sendStateErrorLog() {
         SerialUSB1.println("ERROR: ODRIVE FAILURE");
         break;
     case I2C_ERROR:
-        SerialUSB1.println("ERROR: I2C FAILURE");
+        SerialUSB1.print("ERROR: I2C FAILURE");
+        if (lastI2CFailChannel != -1 && lastI2CFailJointIndex != -1) {
+            SerialUSB1.print(" (mux channel ");
+            SerialUSB1.print(lastI2CFailChannel);
+            SerialUSB1.print(", joint index ");
+            SerialUSB1.print(lastI2CFailJointIndex);
+            SerialUSB1.print(")");
+        }
+        SerialUSB1.println();
         break;
     case LED_ERROR:
         SerialUSB1.println("ERROR: LED FAILURE");
@@ -478,11 +526,20 @@ void sendStateErrorLog() {
  */
 void stateUpdate()
 {
-    bool pwrPressed = powerButtonWasPressed();
-    if (pwrPressed && (currState != BOOTUP && currState != ERROR_STATE && currState != POWERINGOFF)) {
-        currState = POWERINGOFF;
-        return;
-    }
+        bool pwrPressed = powerButtonWasPressed();
+        if (pwrPressed) {
+            SerialUSB1.println("[DEBUG] Power button pressed");
+        }
+        if (pwrPressed && (currState != BOOTUP && currState != ERROR_STATE && currState != POWERINGOFF)) {
+            currState = POWERINGOFF;
+            return;
+        }
+        if (currState == IDLE || currState == HOMING || currState == READY) {
+            if (!verifyOdriveHeartbeatsOrError()) {
+                currState = ERROR_STATE;
+                return;
+            }
+        }
 
   switch (currState) {
     // Verify all hardware before allowing any operation.
@@ -506,14 +563,8 @@ void stateUpdate()
     // PING received: transition to CONNECTED. (Pong is sent in handlePing)
     case IDLE:
     {
-        static uint32_t lastIdleErrorCheckMs = 0;
-        if ((millis() - lastIdleErrorCheckMs) >= 2000) {
-            pumpEvents(can_intf);
-            printOdriveError(&odrv0, 0);
-            printOdriveError(&odrv1, 1);
-            printOdriveError(&odrv2, 2);
-            lastIdleErrorCheckMs = millis();
-        }
+        triggerPulled(&buttonPins::triggerInput); // Add here for testing
+
         if (pollCmdPing()) {
             currState = CONNECTED;
         }
@@ -629,7 +680,7 @@ void stateUpdate()
                 allDone = false;
 
                 // If the ODrive disarmed mid-move, clear the fault and re-enter closed loop.
-                bool armed = joints[i].user_data->received_heartbeat &&
+                bool armed = odriveHeartbeatFresh(*joints[i].user_data, millis()) &&
                              joints[i].user_data->last_heartbeat.Axis_State == 8;
                 if (!armed) {
                     SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
@@ -643,7 +694,7 @@ void stateUpdate()
                     float cur_pos = joints[i].user_data->last_feedback.Pos_Estimate;
                     joints[i].odrive->setPosition(cur_pos, 0.0f, 0.0f);
                     pumpEvents(can_intf);
-                    bool reArmed = joints[i].user_data->received_heartbeat &&
+                    bool reArmed = odriveHeartbeatFresh(*joints[i].user_data, millis()) &&
                                    joints[i].user_data->last_heartbeat.Axis_State == 8;
                     SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
                     SerialUSB1.println(reArmed ? " re-armed OK" : " re-arm FAILED — will retry");
@@ -717,6 +768,9 @@ void stateUpdate()
 
         if ((now - lastStatusTelemMs) >= STATUS_TELEM_INTERVAL_MS) {
             enableODrivePacketSend();
+            if (currState == ERROR_STATE) {
+                break;
+            }
             lastStatusTelemMs = now;
         }
 
@@ -729,6 +783,8 @@ void stateUpdate()
             printOdriveError(&odrv2, 2);
             lastOdriveErrorCheckMs = now;
         }
+        triggerPulled(&buttonPins::triggerInput); // Add here for testing
+        
         break;
     }
 
@@ -741,15 +797,22 @@ void stateUpdate()
 
     // Safe all hardware immediately and report fault.
     // Fault is latched to avoid auto-restart loops and noisy serial output.
-    case ERROR_STATE:
+    case ERROR_STATE: {
+        static bool errorPrinted = false;
         stopODrives();          // emergency stop all motors
         turnOnErrorLED();       // alert operator visually
-        sendStateErrorLog();       // report specific fault over Serial
+        if (!errorPrinted) {
+            sendStateErrorLog();   // report specific fault over Serial
+            SerialUSB1.println("[SAFETY] Emergency stop asserted");
+            errorPrinted = true;
+        }
         // Wait for operator acknowledgement before attempting recovery
         if (pwrPressed) {
             errorRecovery();    // clear error and restart from BOOTUP
+            errorPrinted = false;
         }
         break;
+    }
 
     // Unknown or corrupted state — should never be reached.
     default:

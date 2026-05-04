@@ -66,6 +66,26 @@ static void printLastControllerMode(const ODriveUserData& data, uint8_t node_id)
   SerialUSB1.println(")");
 }
 
+/* Returns true if ODrive data indicates a heartbeat has been received, and the heartbeat age is not timed-out */
+bool odriveHeartbeatFresh(const ODriveUserData& data, uint32_t now_ms, uint32_t timeout_ms) {
+  return data.received_heartbeat &&
+         static_cast<uint32_t>(now_ms - data.last_heartbeat_ms) <= timeout_ms;
+}
+
+bool odriveHeartbeatFresh(const ODriveUserData& data) {
+  return odriveHeartbeatFresh(data, millis(), ODRIVE_HEARTBEAT_TIMEOUT_MS);
+}
+
+bool allOdriveHeartbeatsFresh(uint32_t now_ms) {
+  return odriveHeartbeatFresh(odrv0_user_data, now_ms) &&
+         odriveHeartbeatFresh(odrv1_user_data, now_ms) &&
+         odriveHeartbeatFresh(odrv2_user_data, now_ms);
+}
+
+bool allOdriveHeartbeatsFresh() {
+  return allOdriveHeartbeatsFresh(millis());
+}
+
 /* =========================
  * ODRIVE STATE AND CONTROL MODE
  * ========================= */
@@ -204,7 +224,14 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
   SerialUSB1.print("[ODRIVE] Waiting for node ");
   SerialUSB1.print(node_id);
   SerialUSB1.println("...");
-  while (!data.received_heartbeat) {
+  uint32_t waitStartMs = millis();
+  while (!odriveHeartbeatFresh(data, millis(), ODRIVE_HEARTBEAT_TIMEOUT_MS)) {
+    if (static_cast<uint32_t>(millis() - waitStartMs) >= ODRIVE_INIT_HEARTBEAT_TIMEOUT_MS) {
+      SerialUSB1.print("[ODRIVE] Node ");
+      SerialUSB1.print(node_id);
+      SerialUSB1.println(" heartbeat timeout");
+      return false;
+    }
     pumpEvents(can_intf);
   }
   SerialUSB1.print("[ODRIVE] Node ");
@@ -298,11 +325,15 @@ bool initMultiOdrives() {
  * @note Immediately disables all motors and sets system to safe state
  */
 void emergencyStop() {
+  static bool printed = false;
   for (auto odrive : odrives) {
     odrive->setState(ODriveAxisState::AXIS_STATE_IDLE);
     odrive->setTorque(0.0);
   }
-  SerialUSB1.println("[SAFETY] Emergency stop asserted");
+  if (!printed) {
+    SerialUSB1.println("[SAFETY] Emergency stop asserted");
+    printed = true;
+  }
 }
 
 
