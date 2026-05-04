@@ -144,19 +144,17 @@ bool isTriggerPressed(button_t* b) {
 }
 
 void triggerPulled(button_t* b) {
+
     static bool wasPressed = false;
 
     bool pressed = isTriggerPressed(b);
 
-    if (!wasPressed && getTriggerDepth(b) > 0.05f) {
-        if (!wasPressed) {
+    if (!wasPressed && pressed) {
             Serial.println("Trigger Pressed");
             wasPressed = true;
         }
-    } else {
-        if (wasPressed && getTriggerDepth(b) < 0.02F) {
+    else if(wasPressed && !pressed) {
             Serial.println("Trigger Released");
             wasPressed = false;
         }
     }
-}
