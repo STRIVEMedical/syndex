@@ -32,11 +32,12 @@ float estimateExternalTorque(AdmittanceState* s, float iq_measured, float joint_
     return (iq_measured - s->iq_bias) * s->torque_constant * s->gear_ratio;
 }
 
-// Admittance model: M*a + B*v = F_ext  →  a = (F_ext - B*v) / M
-// Integrate with Euler step
+// Admittance model: M*a + B*v = F_ext
+// Backward (implicit) Euler: unconditionally stable for any dt, M, B > 0.
+// Solves M*(v_new - v_old)/dt + B*v_new = tau_ext directly for v_new,
+// avoiding the divergence that forward Euler gets when B*dt/M > 2.
 void updateAdmittance(AdmittanceState* s, float tau_ext, float dt) {
-    float accel = (tau_ext - s->B * s->vel) / s->M;
-    s->vel += accel * dt;
+    s->vel = (s->M * s->vel + tau_ext * dt) / (s->M + s->B * dt);
     s->pos += s->vel * dt;
 }
 

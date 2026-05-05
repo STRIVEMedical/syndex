@@ -10,6 +10,7 @@
 #include "admittance_controller.h"
 #include <TeensyID.h>
 #include "USB.h"
+#include "buttons.h"
 
 void setup() {
     // Initialize BOTH USB ports first, before anything else
@@ -24,6 +25,7 @@ void setup() {
     delay(2000);
 
     // NOW it's safe to init joints, CAN, etc.
+    analogReadResolution(12); // 12-bit ADC (0–4095) for trigger threshold
     initJoints();
     preInitOdriveCallbacks();
     // Initialize admittance model parameters once at boot.
@@ -48,6 +50,10 @@ void loop() {
   // Poll for incoming USB packets and process them
   pollSerialPackets();
   processIncomingPackets();
+
+  // Poll trigger every loop so debounce state stays fresh in all states.
+  // Edge detection and packet sending happens inside stateUpdate via onTriggerEdge().
+  isTriggerPressed(&buttonPins::triggerInput);
 
   state_e prevState = currState;
   stateUpdate();

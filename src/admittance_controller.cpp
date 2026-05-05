@@ -6,8 +6,8 @@
 #include "joint.h"
 #include "comms.h"   // can_intf for pumpEvents during iq_bias calibration
 
-static const float ADM_DEFAULT_M     = 0.001f;  // was 0.005 — near-instant response
-static const float ADM_DEFAULT_B     = 0.08f;  // was 0.009 — minimum before drift
+static const float ADM_DEFAULT_M     = 0.004f;  // virtual inertia — lower = more responsive, higher = smoother
+static const float ADM_DEFAULT_B     = 0.08f;  // damping — raise to kill oscillation, lower for more compliance
 static const float ADM_DEFAULT_KT    = 0.087f;  // motor Kt (Nm/A)
 static const float ADM_DEFAULT_RATIO = 5.0f;    // gearbox reduction
 
@@ -15,8 +15,8 @@ static const float ADM_DEFAULT_RATIO = 5.0f;    // gearbox reduction
 // NOT the motor's own command (vel_gain=0.01 draws negligible current).
 // This makes iq-based force estimation stable, unlike torque control mode where
 // iq_measured includes the commanded current and creates positive feedback.
-static const float ADM_TAU_DEADBAND_NM    = 0.01f;   // was 0.02 — responds to smaller forces
-static const float ADM_MAX_VEL_TURNS_PER_S = 4.0f;  // was 2.0 — allows faster motion
+// Per-joint deadband is now set in joint.cpp (adm_tau_deadband field).
+static const float ADM_MAX_VEL_TURNS_PER_S = 4.0f;
 static const float ADM_TAU_SIGN           = -1.0f;  // flip to +1 if arm moves against push
 static AdmittanceState g_admittance[NUM_JOINTS];
 
@@ -88,12 +88,12 @@ void stepAdmittanceController(float dt) {
     // draws almost no current itself (vel_gain=0.01), so iq_measured ≈ external torque.
     float tau_raw = estimateExternalTorque(&g_admittance[i], iq_measured, angle_rad);
     float tau_ext = ADM_TAU_SIGN * tau_raw;
-    if (fabsf(tau_ext) < ADM_TAU_DEADBAND_NM) tau_ext = 0.0f;
+    if (fabsf(tau_ext) < j->adm_tau_deadband) tau_ext = 0.0f;
 
     updateAdmittance(&g_admittance[i], tau_ext, dt);
 
     // Convert joint rad/s → motor turns/s: motor spins gear_ratio× faster than joint.
-    float vel_cmd = g_admittance[i].vel * g_admittance[i].gear_ratio / (2.0f * PI);
+    float vel_cmd = g_admittance[i].vel * j->gear_ratio / (2.0f * PI);
     vel_cmd = constrain(vel_cmd, -ADM_MAX_VEL_TURNS_PER_S, ADM_MAX_VEL_TURNS_PER_S);
 
     j->odrive->setVelocity(vel_cmd, 0.0f);

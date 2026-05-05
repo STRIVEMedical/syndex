@@ -268,8 +268,8 @@ bool verifyLED(){
     // Test power LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::powerLED);
     int powerVal = digitalRead(Led::powerLED.pin);
-    SerialUSB1.print("[DEBUG] Power LED pin read: ");
-    SerialUSB1.println(powerVal);
+    // SerialUSB1.print("[DEBUG] Power LED pin read: ");
+    // SerialUSB1.println(powerVal);
     if (powerVal != HIGH) {
         SerialUSB1.println("[DEBUG] Power LED verification failed");
         setError(LED_ERROR);
@@ -278,8 +278,8 @@ bool verifyLED(){
     // Test data LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::dataLED);
     int dataVal = digitalRead(Led::dataLED.pin);
-    SerialUSB1.print("[DEBUG] Data LED pin read: ");
-    SerialUSB1.println(dataVal);
+    // SerialUSB1.print("[DEBUG] Data LED pin read: ");
+    // SerialUSB1.println(dataVal);
     if (dataVal != HIGH) {
         SerialUSB1.println("[DEBUG] Data LED verification failed");
         setError(LED_ERROR);
@@ -288,8 +288,8 @@ bool verifyLED(){
     // Test error LED — write HIGH and confirm pin responds
     ONToggleLED(&Led::errorLED);
     int errorVal = digitalRead(Led::errorLED.pin);
-    SerialUSB1.print("[DEBUG] Error LED pin read: ");
-    SerialUSB1.println(errorVal);
+    // SerialUSB1.print("[DEBUG] Error LED pin read: ");
+    // SerialUSB1.println(errorVal);
     if (errorVal != HIGH) {
         SerialUSB1.println("[DEBUG] Error LED verification failed");
         setError(LED_ERROR);
@@ -382,8 +382,7 @@ void enableI2CPacketSend()
         buildTelemJointPayload(data, i, j->angle, j->velocity);
     }
 
-    float trigDepth = getTriggerDepth(&buttonPins::triggerInput);
-    data.triggerPressed = (trigDepth > 0.5f) ? 0xFF : 0x00;
+    data.triggerPressed = isTriggerPressed(&buttonPins::triggerInput) ? 0xFF : 0x00;
 
     sendTelemJointData(data);
 }
@@ -524,8 +523,35 @@ void sendStateErrorLog() {
  *   Any state   --> ERROR_STATE (fault detected)
  *   ERROR_STATE --> ERROR_STATE (latched fault until device reset)
  */
+// Detects trigger press/release edges and immediately sends a telem packet
+// so Unity receives the state change without waiting for the next telem window.
+// Only sends when connected (READY or HOMING) to avoid spamming before USB is up.
+static void pollTriggerEdge()
+{
+    static bool lastTriggerState = false;
+    bool current = isTriggerPressed(&buttonPins::triggerInput);
+    if (current == lastTriggerState) return;
+    lastTriggerState = current;
+
+    SerialUSB1.print("[TRIGGER] ");
+    SerialUSB1.println(current ? "PRESSED" : "RELEASED");
+
+    if (currState != READY && currState != HOMING && currState != CONNECTED) return;
+
+    // Build a minimal telem packet with current joint angles + new trigger state.
+    telemJointDataPayload data;
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        Joint* j = getJoint(i);
+        if (j) buildTelemJointPayload(data, i, j->angle, j->velocity);
+    }
+    data.triggerPressed = current ? 0xFF : 0x00;
+    sendTelemJointData(data);
+}
+
 void stateUpdate()
 {
+        pollTriggerEdge();
+
         bool pwrPressed = powerButtonWasPressed();
         if (pwrPressed) {
             SerialUSB1.println("[DEBUG] Power button pressed");
@@ -563,8 +589,6 @@ void stateUpdate()
     // PING received: transition to CONNECTED. (Pong is sent in handlePing)
     case IDLE:
     {
-        triggerPulled(&buttonPins::triggerInput); // Add here for testing
-
         if (pollCmdPing()) {
             currState = CONNECTED;
         }
@@ -783,8 +807,6 @@ void stateUpdate()
             printOdriveError(&odrv2, 2);
             lastOdriveErrorCheckMs = now;
         }
-        triggerPulled(&buttonPins::triggerInput); // Add here for testing
-        
         break;
     }
 
@@ -793,6 +815,10 @@ void stateUpdate()
     case POWERINGOFF:
         stopODrives();
         powerOffPeripherals();
+        if (pwrPressed) {
+            SerialUSB1.println("[DEBUG] Power button pressed during POWERINGOFF: restarting system");
+            currState = BOOTUP;
+        }
         break;
 
     // Safe all hardware immediately and report fault.

@@ -18,8 +18,10 @@ struct Joint {
     float           max_torque;       // safety limit (Nm)
     float           home_pos;         // home position (turns)
     bool            use_onboard_encoder; // true = read pos from ODrive, not AS5600
+    float           gear_ratio;        // motor-to-joint reduction (e.g. 5.0 → 5:1). Used to convert motor turns → joint degrees.
     float           home_vel_gain;    // velocity P-gain for homing move
     float           home_vel_int_gain; // velocity I-gain for homing move
+    float           adm_tau_deadband;  // admittance deadband (Nm) — raise to stop resting oscillation, lower for lighter touch
     const char*     label;          // debug name
 
     // Runtime state

@@ -24,14 +24,14 @@ joint # |  Odrv/enc
 // Field order: odrive, user_data, sensor_ch, max_torque, home_pos, use_onboard_encoder,
 //              home_vel_gain, home_vel_int_gain, label, angle, rawValue, velocity, is_homed, target_torque
 Joint joints[NUM_JOINTS] = {
-    // odrive  user_data         sensor_ch         max_t  home   onboard  home_vg  home_vi  label      angle  raw  vel    homed  target_t
-    { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.01f,   0.005f,  "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
-    { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.03f,   0.0f,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
-    { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    0.03f,   0.0f,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          3,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH3", 0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          2,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH2", 0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          1,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH1", 0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          0,                0.0f,  0.0f,  false,   0.0f,    0.0f,    "EXT_CH0", 0.0f,  0,   0.0f,  false, 0.0f },
+    // odrive  user_data         sensor_ch         max_t  home   onboard  ratio  home_vg  home_vi  deadband  label      angle  raw  vel    homed  target_t
+    { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.01f,   0.005f,  0.03f,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.03f,   0.0f,    0.01f,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.03f,   0.0f,    0.01f,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          3,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "EXT_CH3", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          2,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "EXT_CH2", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          1,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "EXT_CH1", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          0,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "EXT_CH0", 0.0f,  0,   0.0f,  false, 0.0f },
 };
 
 void initJoints() {
@@ -63,10 +63,10 @@ void readJointAngles(){
         //Joint reads from Odrive encoder
         if(joints[i].use_onboard_encoder){
             //read position from CAN callback
-            float turns = joints[i].user_data->last_feedback.Pos_Estimate;
-            float velocity_est = joints[i].user_data->last_feedback.Vel_Estimate;
-            joints[i].angle = turns * 360.0f;
-            joints[i].velocity = velocity_est;
+            float turns = joints[i].user_data->last_feedback.Pos_Estimate;  // motor turns
+            float velocity_est = joints[i].user_data->last_feedback.Vel_Estimate;  // motor turns/s
+            joints[i].angle    = (turns / joints[i].gear_ratio) * 360.0f;  // joint degrees
+            joints[i].velocity = (velocity_est / joints[i].gear_ratio) * 360.0f;  // joint deg/s
         }else{
             //Joint reads from external encoder
             tcaSelect(joints[i].sensor_channel);

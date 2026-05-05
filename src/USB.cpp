@@ -282,24 +282,24 @@ void sendCmdNack() {
  */
 void sendTelemJointData(const telemJointDataPayload& payload) {
   // Debug print: joint angles, encoder number, and raw values using getJoint()
-  SerialUSB1.print("[TELEM_JOINT] ");
-  for (int i = 0; i < 7; ++i) {
-    SerialUSB1.print("Joint ");
-    SerialUSB1.print(i);
-    SerialUSB1.print(": angle=");
-    SerialUSB1.print(payload.joints[i].jnAngle, 4);
-    Joint* joint = getJoint(i);
-    if (joint && !joint->use_onboard_encoder) {
-      SerialUSB1.print(" mux ch");
-      SerialUSB1.print((int)joint->sensor_channel);
-      SerialUSB1.print(" raw=");
-      SerialUSB1.print(joint->rawValue);
-    } else if (joint) {
-      SerialUSB1.print(" onboard");
-    }
-    if (i < 6) SerialUSB1.print(" | ");
-  }
-  SerialUSB1.println();
+  // SerialUSB1.print("[TELEM_JOINT] ");
+  // for (int i = 0; i < 7; ++i) {
+  //   SerialUSB1.print("Joint ");
+  //   SerialUSB1.print(i);
+  //   SerialUSB1.print(": angle=");
+  //   SerialUSB1.print(payload.joints[i].jnAngle, 4);
+  //   Joint* joint = getJoint(i);
+  //   if (joint && !joint->use_onboard_encoder) {
+  //     SerialUSB1.print(" mux ch");
+  //     SerialUSB1.print((int)joint->sensor_channel);
+  //     SerialUSB1.print(" raw=");
+  //     SerialUSB1.print(joint->rawValue);
+  //   } else if (joint) {
+  //     SerialUSB1.print(" onboard");
+  //   }
+  //   if (i < 6) SerialUSB1.print(" | ");
+  // }
+  // SerialUSB1.println();
   //
   packet pkt(TELEM_JOINT_DATA, payload);
   sendPacket(pkt);
