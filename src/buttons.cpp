@@ -117,6 +117,23 @@ bool isTriggerPressed(button_t* b) {
         stableState = reading;
     }
 
-    return (stableState == HIGH);  // HIGH = above threshold = pressed
+    return (stableState == LOW);   // LOW = switch closed = pressed
 }
 
+void triggerPulled(button_t* b) {
+    static bool wasPressed = false;
+
+    bool pressed = isTriggerPressed(b);
+
+    if (!wasPressed && getTriggerDepth(b) > 0.05f) {
+        if (!wasPressed) {
+            Serial.println("Trigger Pressed");
+            wasPressed = true;
+        }
+    } else {
+        if (wasPressed && getTriggerDepth(b) < 0.02F) {
+            Serial.println("Trigger Released");
+            wasPressed = false;
+        }
+    }
+}
