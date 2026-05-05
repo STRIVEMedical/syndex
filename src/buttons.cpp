@@ -4,8 +4,7 @@
 #define TRIGGER_MAX_ADC 4046
 
 namespace buttonPins {
-    button_t powerButton = {37, INPUT, HIGH, HIGH};
-    button_t toolSelect  = {39, INPUT, HIGH, HIGH};
+    button_t powerButton = {39, INPUT, HIGH, HIGH};
     // INPUT_PULLUP: pin rests at 3.3V. Wiring: one switch wire to pin 40,
     // other wire to GND. Unpressed = HIGH (~20kΩ switch + pullup), Pressed = LOW (<30Ω to GND).
     button_t triggerInput = {40, INPUT_PULLUP, HIGH, HIGH};
