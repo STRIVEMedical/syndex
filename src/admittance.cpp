@@ -24,7 +24,7 @@ void initAdmittance(AdmittanceState* s, float M, float B, float Kt, float ratio)
 // Convert motor current → joint torque.
 // iq_bias is calibrated at READY entry with the arm stationary: it captures
 // gravity + friction so only deviations from that baseline drive the model.
-// The physics-based gravity model (computeGravityTorque) is intentionally NOT
+// The physics-based gravity gmodel (computeGravityTorque) is intentionally NOT
 // used here: it requires the encoder zero to correspond to a known physical
 // angle (horizontal), which isn't guaranteed. Use iq_bias calibration instead.
 float estimateExternalTorque(AdmittanceState* s, float iq_measured, float joint_angle) {
