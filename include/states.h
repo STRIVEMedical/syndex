@@ -35,9 +35,6 @@ bool verifyODriveComms();
 bool allConnectionsReady();
 bool isHomed();
 
-//Homing state functions
-void startHoming();
-bool verifyHoming();
 
 //Ready state functions
 void enableI2CPacketSend();
@@ -45,9 +42,6 @@ void enableODrivePacketSend();
 
 //PowerOff state functions
 void powerOffPeripherals();
-
-//Error Enumeration (Different types of errors that may occur)
-//ENCODER_ERROR state?
 
 //Error state functions
 bool errorCheck();

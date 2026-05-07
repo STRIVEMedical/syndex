@@ -76,16 +76,6 @@ bool odriveHeartbeatFresh(const ODriveUserData& data) {
   return odriveHeartbeatFresh(data, millis(), ODRIVE_HEARTBEAT_TIMEOUT_MS);
 }
 
-bool allOdriveHeartbeatsFresh(uint32_t now_ms) {
-  return odriveHeartbeatFresh(odrv0_user_data, now_ms) &&
-         odriveHeartbeatFresh(odrv1_user_data, now_ms) &&
-         odriveHeartbeatFresh(odrv2_user_data, now_ms);
-}
-
-bool allOdriveHeartbeatsFresh() {
-  return allOdriveHeartbeatsFresh(millis());
-}
-
 /* =========================
  * ODRIVE STATE AND CONTROL MODE
  * ========================= */
@@ -206,11 +196,11 @@ void enable_position_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node
  * 
  * @param odrv Reference to the ODrive instance to initialize
  * @param data Reference to the ODrive's status data structure
- * @param node_id CAN node ID of this ODrive (0 or 1)
+ * @param node_id CAN node ID of this ODrive (0, 1, or 2)
  * 
  * @return true if ODrive initializes successfully, false otherwise
  * 
- * @usage Called for each ODrive in the system (typically 7 for 7DOF arm)
+ * @usage Called for each ODrive in the system
  * @note Initialization sequence:
  *   1. Register callbacks for heartbeat and feedback
  *   2. Wait for heartbeat to confirm ODrive presence on CAN bus
@@ -301,8 +291,7 @@ void preInitOdriveCallbacks() {
  * @return true if all ODrives initialize successfully, false otherwise
  * 
  * @usage Main initialization function called from setup() in main.cpp
- * @note Current implementation initializes 2 ODrives (for base joints)
- *       Should be expanded to 7 ODrives for full 7DOF control
+ * @note Current implementation initializes the 3 ODrives used by joints 0-2.
  * @warning If any ODrive fails to initialize, entire system startup fails
  */
 bool initMultiOdrives() {

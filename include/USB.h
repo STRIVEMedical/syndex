@@ -10,6 +10,7 @@
 #include <cstdint>
 
 #include "comms.h"
+#include "joint.h"
 
 //Packet Constants
 // Serialized as 0x7F 0xFE on little-endian MCUs to match host framing.
@@ -58,7 +59,7 @@ struct jointTarget {
    //Converted to unsigned16 before sending, converted back to float16 after recieving
 
 struct setJointTargetsPayload {
-  jointTarget joints[7];
+  jointTarget joints[NUM_JOINTS];
 };
 
 struct setJointParameterPayload {
@@ -80,7 +81,7 @@ struct telemStatusPayload {
 };
 
 struct telemJointDataPayload {
-  jointData joints[7];
+  jointData joints[NUM_JOINTS];
   uint8_t triggerPressed;
 };
 
@@ -117,10 +118,6 @@ private:
   uint16_t updateCRC(uint16_t crc, uint8_t data);
 };
 
-//16-bit Float Conversion Functions (For Kinematics Payloads)
-uint16_t float16ToUnsigned16(float value);
-float unsigned16ToFloat16(uint16_t bits);
-
 // USB packet I/O functions
 void pollSerialPackets(); // Poll Serial for incoming bytes and feed parser. Call this often from loop() or stateUpdate().
 void processIncomingPackets(); // Process any available incoming packets by dispatching to handlers.
@@ -131,7 +128,6 @@ void sendCmdAck(); // Send RESP_ACK
 void sendCmdNack(); // Send RESP_NACK
 void sendTelemJointData(const telemJointDataPayload& payload); // Send joint telemetry
 void sendTelemStatus(const telemStatusPayload& payload); // Send status telemetry
-void sendLogMessage(const char* message); // Send log message
 void sendErrorMessage(const char* message); // Send error message
 
 // Loads one joint's telemetry values into the payload entry.

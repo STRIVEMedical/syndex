@@ -17,9 +17,9 @@ void initAdmittance(AdmittanceState* s, float M, float B, float Kt, float ratio)
 }
 
 // Estimate gravity torque at the joint given current angle (radians)
-static float computeGravityTorque(float angle_rad) {
-    return ARM_MASS_KG * GRAVITY * ARM_LENGTH_M * cosf(angle_rad);
-}
+// static float computeGravityTorque(float angle_rad) {
+//     return ARM_MASS_KG * GRAVITY * ARM_LENGTH_M * cosf(angle_rad);
+// }
 
 // Convert motor current → joint torque.
 // iq_bias is calibrated at READY entry with the arm stationary: it captures

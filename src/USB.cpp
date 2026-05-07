@@ -20,26 +20,6 @@ static void handleSetJointParameter(const setJointParameterPayload& payload);
 static void handleEStop();
 static void handleConfirmHome();
 
-// 16-bit Float Conversion Functions
-// Converts 32-bit float to 16-bit float representation for compact transmission
-uint16_t float16ToUnsigned16(float value) {
-  // Simple conversion: pack mantissa and exponent into 16 bits
-  // This is a placeholder implementation - adjust scale/precision as needed
-  if (value == 0.0f) return 0;
-  
-  // Scale float to fit in 16-bit unsigned (0-65535 range)
-  // Adjust scale factor (1000.0f) based on your expected value range
-  uint16_t result = (uint16_t)((value + 180.0f) * 181.84f);  // Map -180 to 180 degrees to 0-65535
-  return result;
-}
-
-// Converts 16-bit float representation back to 32-bit float
-float unsigned16ToFloat16(uint16_t bits) {
-  // Reverse of float16ToUnsigned16
-  float result = (float)bits / 181.84f - 180.0f;  // Map 0-65535 back to -180 to 180 degrees
-  return result;
-}
-
 // Parser state machine
 enum ParseState {
   WAIT_SYNC_1,
@@ -283,7 +263,7 @@ void sendCmdNack() {
 void sendTelemJointData(const telemJointDataPayload& payload) {
   // Debug print: joint angles, encoder number, and raw values using getJoint()
   // SerialUSB1.print("[TELEM_JOINT] ");
-  // for (int i = 0; i < 7; ++i) {
+  // for (int i = 0; i < NUM_JOINTS; ++i) {
   //   SerialUSB1.print("Joint ");
   //   SerialUSB1.print(i);
   //   SerialUSB1.print(": angle=");
@@ -297,7 +277,7 @@ void sendTelemJointData(const telemJointDataPayload& payload) {
   //   } else if (joint) {
   //     SerialUSB1.print(" onboard");
   //   }
-  //   if (i < 6) SerialUSB1.print(" | ");
+  //   if (i < NUM_JOINTS - 1) SerialUSB1.print(" | ");
   // }
   // SerialUSB1.println();
   //
@@ -310,19 +290,6 @@ void sendTelemJointData(const telemJointDataPayload& payload) {
  */
 void sendTelemStatus(const telemStatusPayload& payload) {
   packet pkt(TELEM_STATUS, payload);
-  sendPacket(pkt);
-}
-
-/*
- * Send LOG_MESSAGE packet.
- */
-void sendLogMessage(const char* message) {
-  packet pkt(LOG_MESSAGE);
-  size_t len = strlen(message);
-  if (len > MAX_PAYLOAD_SIZE) len = MAX_PAYLOAD_SIZE;
-  memcpy(pkt.payload, message, len);
-  pkt.header.payloadSize = len;
-  pkt.checksum = pkt.calculateCRC();
   sendPacket(pkt);
 }
 

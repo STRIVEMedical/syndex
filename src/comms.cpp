@@ -39,9 +39,9 @@ bool initCommunications() {
 
 
 // Define globals declared in i2c.h
-float zeroOffset[NUM_ENCODERS] = {0, 0, 0, 0};   // per-sensor zeroing
-long turns[NUM_ENCODERS] = {0, 0, 0, 0};         // multi-turn tracking
-int lastRaw[NUM_ENCODERS] = {0, 0, 0, 0};
+float zeroOffset[NUM_ENCODERS] = {0, 0, 0};   // per-sensor zeroing
+long turns[NUM_ENCODERS] = {0, 0, 0};         // multi-turn tracking
+int lastRaw[NUM_ENCODERS] = {0, 0, 0};
 
 /*
 Selects channel `ch` on the TCA9548A I2C multiplexer by writing a bitmask 

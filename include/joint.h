@@ -1,4 +1,4 @@
-// joint.h - Simple joint mapping for 7DOF arm
+// joint.h - Simple joint mapping for 6DOF arm
 #ifndef JOINT_H
 #define JOINT_H
 
@@ -6,7 +6,7 @@
 #include "odrive.h"
 
 #define INACTIVE_CHANNEL 255
-#define NUM_JOINTS 7
+#define NUM_JOINTS 6
 
 // Stores hardware mapping for one joint
 
@@ -33,6 +33,8 @@ struct Joint {
     float           max_position;   // 
     float           min_position;    // 
 };
+
+extern Joint joints[NUM_JOINTS];
 
 // Initialize all joints with default mapping
 void initJoints();

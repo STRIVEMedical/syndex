@@ -9,30 +9,8 @@
 #include "joint.h"
 #include <cstddef>
 
-
-extern Joint joints[NUM_JOINTS];
 #include "admittance_controller.h"
 #include "errors.h"
-
-// Test function: command a fixed velocity to a joint for debugging
-void testSetJointVelocity(int jointIdx, float velocity) {
-    if (jointIdx < 0 || jointIdx >= NUM_JOINTS) {
-        SerialUSB1.print("[TEST] Invalid joint index: ");
-        SerialUSB1.println(jointIdx);
-        return;
-    }
-    if (joints[jointIdx].odrive == nullptr) {
-        SerialUSB1.print("[TEST] Joint ");
-        SerialUSB1.print(jointIdx);
-        SerialUSB1.println(" has no ODrive attached.");
-        return;
-    }
-    SerialUSB1.print("[TEST] Setting joint ");
-    SerialUSB1.print(jointIdx);
-    SerialUSB1.print(" velocity to ");
-    SerialUSB1.println(velocity, 4);
-    joints[jointIdx].odrive->setVelocity(velocity, 0.0f);
-}
 
 
 state_e currState = BOOTUP;
@@ -360,7 +338,7 @@ bool pollCmdPing() {
  */
 void enableI2CPacketSend()
 {
-    telemJointDataPayload data;
+    telemJointDataPayload data{};
 
     for (int i = 0; i < NUM_JOINTS; i++) {
         Joint* j = getJoint(i);
@@ -443,6 +421,8 @@ void turnOnErrorLED(){
 void errorRecovery(){
     clearError();                  // reset currError to NO_ERROR
     OFFToggleLED(&Led::errorLED);  // turn off error LED
+    resetReadyState();             // clear READY sub-state before restarting
+    resetHomingState();            // clear HOMING timeout state before restarting
     currState = BOOTUP;            // restart verification from beginning
 }
 
@@ -539,7 +519,7 @@ static void pollTriggerEdge()
     if (currState != READY && currState != HOMING && currState != CONNECTED) return;
 
     // Build a minimal telem packet with current joint angles + new trigger state.
-    telemJointDataPayload data;
+    telemJointDataPayload data{};
     for (int i = 0; i < NUM_JOINTS; i++) {
         Joint* j = getJoint(i);
         if (j) buildTelemJointPayload(data, i, j->angle, j->velocity);

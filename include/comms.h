@@ -22,7 +22,7 @@
 #define AS5600_ADDR 0x36
 #define ANGLE_HIGH 0x0C
 #define ANGLE_LOW 0x0F
-#define NUM_ENCODERS 4
+#define NUM_ENCODERS 3
 
 // I2C encoder state
 extern float zeroOffset[NUM_ENCODERS];

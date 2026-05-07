@@ -23,34 +23,6 @@ namespace buttonPins {
     extern button_t triggerInput;
 }
 
-typedef struct {
-  bool power_pressed  = false;
-  bool power_released = false;
-
-  bool tool_pressed   = false;
-  bool tool_released  = false;
-
-  bool trigger_pressed  = false;
-  bool trigger_released = false;
-
-} ButtonEvents_t;
-
-static DebouncedButton dbPower = {HIGH, HIGH, 0};
-static DebouncedButton dbCycle = {HIGH, HIGH, 0};
-
-void buttonInit(button_t* b);
-
-void buttonDetect(button_t* b);
-
-void buttonUpdate(button_t* b);
-
-namespace Buttons {
-    void setup();
-};
-
-void ToolCycleButton(button_t* b);
-void testPowerButton(button_t* b);
-float getTriggerDepth(button_t* b);   // stub — always 0.0, switch is boolean only
 bool  isTriggerPressed(button_t* b);  // true while trigger is held (debounced, active-low)
 bool powerButtonWasPressed();
 

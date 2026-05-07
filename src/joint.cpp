@@ -7,13 +7,12 @@
 
 /*
 joint # |  Odrv/enc
-    0   |   odrv 0
-    1   |   odrv 1
-    2   |   odrv 2
-    3   |   enc 3
-    4   |   enc 2
-    5   |   enc 1
-    6   |   enc 0
+    0   |   odrv 0   ROTATE
+    1   |   odrv 1   REACH
+    2   |   odrv 2   LIFT
+    3   |   enc 0    PITCH
+    4   |   enc 1    YAW
+    5   |   enc 2    ROLL
 
 */
 // ── Homing gains (per joint) ──────────────────────────────────────────────────
@@ -28,10 +27,9 @@ Joint joints[NUM_JOINTS] = {
     { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.01f,   0.005f,  0.03f,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
     { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.03f,   0.0f,    0.01f,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
     { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.03f,   0.0f,    0.01f,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          3,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "EXT_CH3", 0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          2,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "EXT_CH2", 0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          1,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "EXT_CH1", 0.0f,  0,   0.0f,  false, 0.0f },
-    { nullptr, nullptr,          0,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "EXT_CH0", 0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          0,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "PITCH",   0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          1,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "YAW",     0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          2,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "ROLL",    0.0f,  0,   0.0f,  false, 0.0f },
 };
 
 void initJoints() {
@@ -85,13 +83,13 @@ void readJointAngles(){
         }
     }
     // Print all joint angles side by side
-    SerialUSB1.print("[DEBUG] Joint angles: ");
-    for(int i = 0; i < NUM_JOINTS; i++){
-        SerialUSB1.print(joints[i].angle, 4);
-        if(i < NUM_JOINTS - 1) SerialUSB1.print(" | ");
-    }
-    SerialUSB1.println();
-    delay(100); // Small delay for readability
+    // SerialUSB1.print("[DEBUG] Joint angles: ");
+    // for(int i = 0; i < NUM_JOINTS; i++){
+    //     SerialUSB1.print(joints[i].angle, 4);
+    //     if(i < NUM_JOINTS - 1) SerialUSB1.print(" | ");
+    // }
+    // SerialUSB1.println();
+    // delay(100); // Small delay for readability
 }
 
 

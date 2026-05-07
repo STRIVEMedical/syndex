@@ -69,8 +69,6 @@ bool initMultiOdrives();
 bool odriveHeartbeatFresh(const ODriveUserData& data, uint32_t now_ms,
                           uint32_t timeout_ms = ODRIVE_HEARTBEAT_TIMEOUT_MS);
 bool odriveHeartbeatFresh(const ODriveUserData& data);
-bool allOdriveHeartbeatsFresh(uint32_t now_ms);
-bool allOdriveHeartbeatsFresh();
 
 /*
 Helper to transition an ODrive into closed-loop control.
