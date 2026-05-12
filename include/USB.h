@@ -62,7 +62,10 @@ struct setJointTargetsPayload {
   jointTarget joints[NUM_JOINTS];
 };
 
-struct setJointParameterPayload {
+// __attribute__((packed)) removes the 2-byte padding C++ normally inserts before
+// 'value' to align it to 4 bytes. Without it sizeof == 8, but Unity sends 6 bytes
+// (Pack=1), causing the firmware size check to silently drop the command.
+struct __attribute__((packed)) setJointParameterPayload {
   uint8_t jointMask;
   uint8_t parameterID;
   float value;
@@ -78,6 +81,18 @@ struct telemStatusPayload {
   uint8_t armStatus;
   uint8_t odriveFaults;
   uint8_t reserved[8];
+};
+
+enum armStatusCode : uint8_t {
+  ARM_STATUS_BOOTUP = 0x00,
+  ARM_STATUS_IDLE = 0x01,
+  ARM_STATUS_CONNECTED = 0x02,
+  ARM_STATUS_MANUAL_HOME_ASSIST = 0x03,
+  ARM_STATUS_ASSIST_ACTIVE = 0x04,
+  ARM_STATUS_AUTO_RETURN_HOME = 0x05,
+  ARM_STATUS_RESTORE_ASSIST = 0x06,
+  ARM_STATUS_POWERING_OFF = 0x07,
+  ARM_STATUS_ERROR = 0x08,
 };
 
 struct telemJointDataPayload {

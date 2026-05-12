@@ -24,14 +24,14 @@ static int lastI2CFailJointIndex = -1;
 static const uint32_t JOINT_TELEM_INTERVAL_MS = 5;
 static const uint32_t STATUS_TELEM_INTERVAL_MS = 100; // 10 Hz
 
-// ── READY sub-state — file-scope so variables survive state re-entries ────────
+// ── Assist / autonomous return-home sub-state ────────────────────────────────
 // Using file-scope (not static locals) means resetReadyState() can zero them on
 // every entry, preventing stale values if the system exits and re-enters READY.
-enum ReadySubState { ADMITTANCE, MOVING_TO_HOME, RESTORING, HOMED_IDLE };
-static ReadySubState readySubState          = ADMITTANCE;
-static bool          restoreAdmittanceAfterHome = true;
+enum ReadySubState { ASSIST_ACTIVE, AUTO_RETURN_HOME, RESTORE_ASSIST };
+static ReadySubState readySubState          = ASSIST_ACTIVE;
 static bool          readyTelemInit         = false;
 static bool          enteredReady           = false;
+static bool          manualHomeAssistActive = false;
 static uint32_t      lastJointTelemMs       = 0;
 static uint32_t      lastStatusTelemMs      = 0;
 static uint32_t      lastAdmittanceUs       = 0;
@@ -55,8 +55,7 @@ static const uint32_t ODRIVE_ERROR_CHECK_INTERVAL_MS = 10000000;
 static const uint32_t HOMING_LOG_INTERVAL_MS      = 500;
 
 static void resetReadyState() {
-    readySubState          = ADMITTANCE;
-    restoreAdmittanceAfterHome = true;
+    readySubState          = ASSIST_ACTIVE;
     readyTelemInit         = false;
     enteredReady           = false;
     lastJointTelemMs       = 0;
@@ -77,6 +76,29 @@ static const uint32_t HOMING_TIMEOUT_MS = 300000UL; // 5-minute operator timeout
 static void resetHomingState() {
     homingEnteredMs    = 0;
     homingTimerStarted = false;
+    manualHomeAssistActive = false;
+}
+
+static void enterAssistMode(const char* logMessage) {
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        if (joints[i].use_onboard_encoder && joints[i].odrive != nullptr && joints[i].user_data != nullptr) {
+            enable_velocity_control(*joints[i].odrive, *joints[i].user_data, i);
+        }
+    }
+    resetAdmittanceController();
+    lastAdmittanceUs = micros();
+    readySubState = ASSIST_ACTIVE;
+    if (logMessage != nullptr) {
+        SerialUSB1.println(logMessage);
+    }
+}
+
+static void runAssistStep() {
+    readJointAngles();
+    uint32_t nowUs = micros();
+    float dt = (nowUs - lastAdmittanceUs) * 1e-6f;
+    lastAdmittanceUs = nowUs;
+    stepAdmittanceController(dt);
 }
 
 static void restartFromBoot(bool requireOperatorHoming) {
@@ -99,18 +121,28 @@ void requestStartHoming() {
         return;
     }
 
-    if (readySubState == MOVING_TO_HOME || readySubState == RESTORING) {
-        SerialUSB1.println("[HOMING] CMD_START_HOMING ignored; homing is already active.");
+    if (readySubState == AUTO_RETURN_HOME || readySubState == RESTORE_ASSIST) {
+        SerialUSB1.println("[HOMING] CMD_START_HOMING ignored; autonomous return-home is already active.");
         return;
     }
 
-    restoreAdmittanceAfterHome = (readySubState == ADMITTANCE);
     moveToHomePending = true;
+    SerialUSB1.println("[HOMING] CMD_START_HOMING: autonomous return-home requested; admittance will be restored afterward.");
+}
 
-    if (restoreAdmittanceAfterHome) {
-        SerialUSB1.println("[HOMING] CMD_START_HOMING: in-lesson request from ADMITTANCE; admittance will be restored after homing.");
-    } else {
-        SerialUSB1.println("[HOMING] CMD_START_HOMING: normal/end-of-lesson request; admittance will stay off after homing.");
+static uint8_t currentArmStatusCode() {
+    switch (currState) {
+    case BOOTUP: return ARM_STATUS_BOOTUP;
+    case IDLE: return ARM_STATUS_IDLE;
+    case CONNECTED: return ARM_STATUS_CONNECTED;
+    case HOMING: return ARM_STATUS_MANUAL_HOME_ASSIST;
+    case READY:
+        if (readySubState == AUTO_RETURN_HOME) return ARM_STATUS_AUTO_RETURN_HOME;
+        if (readySubState == RESTORE_ASSIST) return ARM_STATUS_RESTORE_ASSIST;
+        return ARM_STATUS_ASSIST_ACTIVE;
+    case POWERINGOFF: return ARM_STATUS_POWERING_OFF;
+    case ERROR_STATE: return ARM_STATUS_ERROR;
+    default: return ARM_STATUS_ERROR;
     }
 }
 
@@ -421,9 +453,8 @@ void enableODrivePacketSend()
         return;
     }
 
-    // TODO: confirm what values armStatus and odriveFaults should hold
-    // status.armStatus =
-    // status.odriveFaults =
+    status.armStatus = currentArmStatusCode();
+    status.odriveFaults = 0;
 
     sendTelemStatus(status);
 }
@@ -640,6 +671,11 @@ void stateUpdate()
             SerialUSB1.println("[HOMING] Awaiting CMD_CONFIRM_HOME from operator (5-min timeout).");
         }
 
+        if (!manualHomeAssistActive) {
+            enterAssistMode("[ASSIST] admittance active for manual home placement.");
+            manualHomeAssistActive = true;
+        }
+
         if (confirmHomePending) {
             confirmHomePending = false;
             moveToHomePending  = false;  // prevent READY from triggering a second homing sequence
@@ -655,12 +691,16 @@ void stateUpdate()
             resetHomingState();
             currState = ERROR_STATE;
         }
+
+        if (currState == HOMING) {
+            runAssistStep();
+        }
         break;
     }
 
     // Normal operating state — admittance control always running.
     // data LED turns on once on entry via static flag.
-    // Sub-states: ADMITTANCE (normal), MOVING_TO_HOME (position control), RESTORING (back to velocity).
+    // Sub-states: ASSIST_ACTIVE, AUTO_RETURN_HOME, RESTORE_ASSIST.
     case READY:
     {
         // All sub-state variables are file-scope (declared above stateUpdate).
@@ -669,9 +709,7 @@ void stateUpdate()
 
         if (!enteredReady) {
             ONToggleLED(&Led::dataLED); // data LED on = system operational
-            // Reset integrated admittance state when entering READY to avoid step jumps.
-            resetAdmittanceController();
-            lastAdmittanceUs = micros();
+            enterAssistMode("[ASSIST] admittance active.");
             enteredReady = true;
         }
 
@@ -683,17 +721,13 @@ void stateUpdate()
         }
 
         // ── Sub-state: MOVING_TO_HOME ────────────────────────────────────────────
-        // Entered when the user presses H (CMD_START_HOMING) while in ADMITTANCE.
-        // Stops admittance, switches each ODrive joint to position control one at a
-        // time (order defined by HOMING_ORDER), and drives it to home_pos=0.
-        // When all joints are done, transitions to RESTORING.
-        if (moveToHomePending && (readySubState == ADMITTANCE || readySubState == HOMED_IDLE)) {
+        // CMD_START_HOMING temporarily suspends assist, switches each ODrive
+        // joint to position control, and drives it to home_pos=0.
+        // When all joints are done, transitions to RESTORE_ASSIST.
+        if (moveToHomePending && readySubState == ASSIST_ACTIVE) {
             moveToHomePending = false;
-            if (restoreAdmittanceAfterHome) {
-                SerialUSB1.println("[HOMING] Starting in-lesson homing; suspending admittance control.");
-            } else {
-                SerialUSB1.println("[HOMING] Starting normal/end-of-lesson homing; admittance will remain off.");
-            }
+            SerialUSB1.println("[ASSIST] suspending admittance for auto homing");
+            SerialUSB1.println("[HOMING] autonomous return-home started");
 
             // Stop any residual velocity commands from admittance before switching modes.
             for (int i = 0; i < NUM_JOINTS; i++) {
@@ -708,10 +742,10 @@ void stateUpdate()
                 setupJointForHoming(HOMING_ORDER[k]);
             }
             moveToHomeStartMs = millis();
-            readySubState = MOVING_TO_HOME;
+            readySubState = AUTO_RETURN_HOME;
         }
 
-        if (readySubState == MOVING_TO_HOME) {
+        if (readySubState == AUTO_RETURN_HOME) {
             uint32_t nowMs = millis();
             bool doLog = (nowMs - lastHomingLogMs) >= HOMING_LOG_INTERVAL_MS;
             bool allDone = true;
@@ -772,42 +806,23 @@ void stateUpdate()
 
             if (allDone) {
                 SerialUSB1.println("[HOMING] All joints homed.");
-                if (restoreAdmittanceAfterHome) {
-                    SerialUSB1.println("[HOMING] Homing complete; restoring admittance control.");
-                    readySubState = RESTORING;
-                } else {
-                    SerialUSB1.println("[HOMING] Homing complete; admittance remains off.");
-                    readySubState = HOMED_IDLE;
-                }
+                SerialUSB1.println("[HOMING] autonomous return-home complete");
+                readySubState = RESTORE_ASSIST;
             }
         }
 
         // ── Sub-state: RESTORING ─────────────────────────────────────────────────
-        // Runs once after MOVING_TO_HOME finishes. Switches all ODrives from
-        // position control back to torque control for admittance, then re-calibrates
-        // iq_bias at the new arm pose before resuming ADMITTANCE.
-        if (readySubState == RESTORING) {
-            SerialUSB1.println("[READY] Restoring admittance mode.");
-            for (int i = 0; i < NUM_JOINTS; i++) {
-                if (joints[i].use_onboard_encoder && joints[i].odrive != nullptr) {
-                    enable_velocity_control(*joints[i].odrive, *joints[i].user_data, i);
-                }
-            }
-            resetAdmittanceController();
-            lastAdmittanceUs = micros();
-            readySubState = ADMITTANCE;
+        // Runs once after AUTO_RETURN_HOME finishes. Switches ODrives back to
+        // velocity assist and re-calibrates iq_bias at the new arm pose.
+        if (readySubState == RESTORE_ASSIST) {
+            enterAssistMode("[ASSIST] admittance restored");
         }
 
         // ── Sub-state: ADMITTANCE ────────────────────────────────────────────────
         // Default operating mode. ODrives run in soft velocity control so the arm
-        // is compliant and can be moved by hand. Runs every loop iteration until
-        // the user triggers a return-to-home (H key).
-        if (readySubState == ADMITTANCE) {
-            readJointAngles();
-            uint32_t nowUs = micros();
-            float dt = (nowUs - lastAdmittanceUs) * 1e-6f;
-            lastAdmittanceUs = nowUs;
-            stepAdmittanceController(dt);
+        // is compliant and can be moved by hand.
+        if (readySubState == ASSIST_ACTIVE) {
+            runAssistStep();
         }
 
         uint32_t now = millis();
@@ -826,7 +841,7 @@ void stateUpdate()
 
         // Periodically read ODrive error registers — skip during homing to avoid
         // blocking CAN requests competing with the homing loop.
-        if (readySubState == ADMITTANCE &&
+        if (readySubState == ASSIST_ACTIVE &&
             (now - lastOdriveErrorCheckMs) >= ODRIVE_ERROR_CHECK_INTERVAL_MS) {
             printOdriveError(&odrv0, 0);
             printOdriveError(&odrv1, 1);

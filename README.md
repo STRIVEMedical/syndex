@@ -173,9 +173,9 @@ BOOTUP ──[hardware OK]──→ IDLE ──[CMD_PING]──→ CONNECTED
 **READY** — Normal operation. Sub-states:
 | Sub-state      | Description                                              |
 |---------------|----------------------------------------------------------|
-| ADMITTANCE    | Admittance control loop at ~200 Hz; arm is compliant     |
-| MOVING_TO_HOME| Arm returns to home under position control (**H** key)   |
-| RESTORING     | Restores velocity control, re-calibrates admittance bias |
+| ASSIST_ACTIVE | Admittance control loop; arm is compliant and assisted   |
+| AUTO_RETURN_HOME | Arm returns to home under position control (**H** key) |
+| RESTORE_ASSIST | Restores velocity control, re-calibrates admittance bias |
 
 **POWERINGOFF** — Graceful shutdown: motors idled, LEDs off.
 
@@ -195,7 +195,7 @@ Homing establishes the zero-position reference for the arm. Required on every po
 5. System → READY.
 
 ### Return to home (after homing)
-Operator presses **H** in Unity, sends `CMD_START_HOMING`. Firmware switches to position control, drives all ODrive joints to `home_pos = 0.0f`. Once all joints are within 0.02 turns of home (or after timeout), velocity/admittance mode is restored.
+Operator presses **H** in Unity, sends `CMD_START_HOMING`. Firmware logs `[ASSIST] suspending admittance for auto homing`, switches to position control, and drives all ODrive joints to `home_pos = 0.0f`. Once autonomous return-home finishes, firmware always restores velocity/admittance assist and logs `[ASSIST] admittance restored`.
 
 **Design note:** Use ODrive's Custom User Reference Frame (write `0` to `pos_estimate`) for zeroing, not `setAbsolutePosition()`. The latter causes a position discontinuity and velocity fault. Custom Reference Frame sets a smooth offset.
 
@@ -211,17 +211,17 @@ Each ODrive Micro runs one joint motor over CAN at 250 kbps, using `ODriveCAN` C
 
 | Mode                  | When active                                 | How commanded                        |
 |-----------------------|---------------------------------------------|--------------------------------------|
-| Velocity + passthrough| HOMING, READY/ADMITTANCE, READY/RESTORING   | `setVelocity(vel_turns_per_s, 0.0f)` |
-| Position + passthrough| READY/MOVING_TO_HOME only                   | `setPosition(home_pos, 0.0f, 0.0f)`  |
+| Velocity + passthrough| Manual home placement, READY/ASSIST_ACTIVE, READY/RESTORE_ASSIST | `setVelocity(vel_turns_per_s, 0.0f)` |
+| Position + passthrough| READY/AUTO_RETURN_HOME only                 | `setPosition(home_pos, 0.0f, 0.0f)`  |
 
 ### Velocity control parameters (set once at init)
 
 | Parameter         | Value         | Purpose                                 |
 |-------------------|--------------|-----------------------------------------|
-| `vel_gain`        | 0.001        | Very soft — joint is easy to backdrive   |
-| `vel_int_gain`    | 0.0          | No integral term during admittance       |
-| `vel_limit`       | 50 turns/s   | Safety clamp on motor velocity           |
-| `current_soft_max`| 6 A          | Implicit torque / force limit            |
+| `vel_gain`        | J0 0.010, J1/J2 0.009 | Soft velocity loop for assisted motion |
+| `vel_int_gain`    | J0 0.000, J1/J2 0.005 | Small integral term on reach/lift axes |
+| `vel_limit`       | 30 turns/s   | Safety clamp on motor velocity           |
+| `current_soft_max`| J0/J1 3 A, J2 4 A | Conservative lift-axis authority bump for heavier manipulator |
 
 ### Initialization sequence (per ODrive, at power-on)
 1. Register CAN callbacks for heartbeat, encoder, current
@@ -234,7 +234,9 @@ Each ODrive Micro runs one joint motor over CAN at 250 kbps, using `ODriveCAN` C
 
 ## Admittance Control
 
-Admittance control makes the arm feel weightless by sensing operator force and computing a velocity response. Runs only in READY/ADMITTANCE at ~200 Hz for joints 0–2.
+Admittance assist is now the default user-interactive mode for J0-J2. It runs during manual home placement and normal READY operation, and is suspended only while autonomous return-home uses ODrive position control.
+
+Admittance control makes the arm feel weightless by sensing operator force and computing a velocity response. It runs during manual home placement and READY/ASSIST_ACTIVE for joints 0-2.
 
 ### How it works
 

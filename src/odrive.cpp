@@ -20,6 +20,12 @@ static const float ADMITTANCE_VEL_INT_GAIN_1_2 = 0.005f;
 static const float ADMITTANCE_VEL_LIMIT        = 30.0f; // high — current_soft_max limits resistance, not this
 static const float ADMITTANCE_CURRENT_SOFT_MAX =  3.0f;
 
+// Per-node assist authority for the heavier manipulator. Keep J0/J1 at the
+// previous limit and give J2/LIFT a conservative bump for gravity load.
+static const float ASSIST_CURRENT_SOFT_MAX_0 = 3.0f;
+static const float ASSIST_CURRENT_SOFT_MAX_1 = 3.0f;
+static const float ASSIST_CURRENT_SOFT_MAX_2 = 4.0f;
+
 static const char* controlModeName(uint8_t mode) {
   switch (mode) {
     case ODriveControlMode::CONTROL_MODE_VOLTAGE_CONTROL: return "VOLTAGE";
@@ -141,16 +147,22 @@ void enable_velocity_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node
     ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL,
     ODriveInputMode::INPUT_MODE_PASSTHROUGH);
 
-  float vel_gain, vel_int_gain;
+  float vel_gain, vel_int_gain, current_soft_max;
   if (node_id == 0) {
     vel_gain     = ADMITTANCE_VEL_GAIN_0;
     vel_int_gain = ADMITTANCE_VEL_INT_GAIN_0;
+    current_soft_max = ASSIST_CURRENT_SOFT_MAX_0;
+  } else if (node_id == 1) {
+    vel_gain     = ADMITTANCE_VEL_GAIN_1_2;
+    vel_int_gain = ADMITTANCE_VEL_INT_GAIN_1_2;
+    current_soft_max = ASSIST_CURRENT_SOFT_MAX_1;
   } else {
     vel_gain     = ADMITTANCE_VEL_GAIN_1_2;
     vel_int_gain = ADMITTANCE_VEL_INT_GAIN_1_2;
+    current_soft_max = ASSIST_CURRENT_SOFT_MAX_2;
   }
   odrv.setVelGains(vel_gain, vel_int_gain);
-  odrv.setLimits(ADMITTANCE_VEL_LIMIT, ADMITTANCE_CURRENT_SOFT_MAX);
+  odrv.setLimits(ADMITTANCE_VEL_LIMIT, current_soft_max);
 
   data.last_controller_mode.Control_Mode = ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL;
   data.last_input_mode.Input_Mode        = ODriveInputMode::INPUT_MODE_PASSTHROUGH;
@@ -165,7 +177,7 @@ void enable_velocity_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node
   SerialUSB1.print(" vel_gain=");       SerialUSB1.print(vel_gain, 4);
   SerialUSB1.print(" vel_int=");        SerialUSB1.print(vel_int_gain, 4);
   SerialUSB1.print(" vel_limit=");      SerialUSB1.print(ADMITTANCE_VEL_LIMIT, 2);
-  SerialUSB1.print(" cur_soft_max=");   SerialUSB1.println(ADMITTANCE_CURRENT_SOFT_MAX, 2);
+  SerialUSB1.print(" cur_soft_max=");   SerialUSB1.println(current_soft_max, 2);
   printLastControllerMode(data, node_id);
 }
 

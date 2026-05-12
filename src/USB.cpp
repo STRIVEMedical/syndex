@@ -5,6 +5,7 @@
 #include "USB.h"
 #include "joint.h"
 #include "states.h"
+#include "buttons.h"
 
 // File-local helpers used only inside the USB module.
 static bool getNextPacket(packet& outPacket);
@@ -398,8 +399,20 @@ static void handleSetJointTargets(const setJointTargetsPayload& payload) {
 }
 
 static void handleRequestTelem() {
-  // TODO: Send current telemetry data
-  // For now, send ACK
+  // Build a one-shot joint data snapshot from the current joint state.
+  // Note: joint data is also auto-streamed every JOINT_TELEM_INTERVAL_MS (5 ms)
+  // while in READY state, so Unity typically does not need to poll.
+  // This handler exists for cases where the host requests data outside READY
+  // (e.g. during HOMING) or needs an immediate refresh.
+  telemJointDataPayload data{};
+  for (int i = 0; i < NUM_JOINTS; i++) {
+    Joint* j = getJoint(i);
+    if (j != nullptr) {
+      buildTelemJointPayload(data, i, j->angle, j->velocity);
+    }
+  }
+  data.triggerPressed = isTriggerPressed(&buttonPins::triggerInput) ? 0xFF : 0x00;
+  sendTelemJointData(data);
   sendCmdAck();
 }
 
