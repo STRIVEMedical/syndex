@@ -24,7 +24,7 @@ joint # |  Odrv/enc
 //              home_vel_gain, home_vel_int_gain, label, angle, rawValue, velocity, is_homed, target_torque
 Joint joints[NUM_JOINTS] = {
     // odrive  user_data         sensor_ch         max_t  home   onboard  ratio  home_vg  home_vi  deadband  label      angle  raw  vel    homed  target_t
-    { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.01f,   0.005f,  0.03f,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.01f,   0.005f,  0.01f,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
     { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.03f,   0.0f,    0.01f,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
     { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.03f,   0.0f,    0.01f,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
     { nullptr, nullptr,          0,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "PITCH",   0.0f,  0,   0.0f,  false, 0.0f },

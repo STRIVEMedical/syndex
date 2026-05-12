@@ -41,7 +41,7 @@ static uint32_t      lastHomingLogMs        = 0;
 static bool          homingJointDone[3]     = {false, false, false};
 
 // Order in which ODrive joints are homed. Change this array to reorder.
-static const int      HOMING_ORDER[]              = {0, 1, 2};
+static const int      HOMING_ORDER[]              = {0, 2, 1};
 static const int      HOMING_ORDER_LEN            = 3;
 
 static const float    HOME_TOL                    = 0.3f;

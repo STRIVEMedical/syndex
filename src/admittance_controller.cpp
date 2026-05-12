@@ -14,8 +14,8 @@ struct AdmittanceTuning {
   float max_vel_turns_per_s;
 };
 
-static const float ADM_DEFAULT_M     = 0.004f;  // virtual inertia — lower = more responsive, higher = smoother
-static const float ADM_DEFAULT_B     = 0.08f;  // damping — raise to kill oscillation, lower for more compliance
+static const float ADM_DEFAULT_M     = 0.002f;  // virtual inertia — lower = more responsive, higher = smoother
+static const float ADM_DEFAULT_B     = 0.03f;  // damping — raise to kill oscillation, lower for more compliance
 static const float ADM_DEFAULT_KT    = 0.087f;  // motor Kt (Nm/A)
 static const float ADM_DEFAULT_RATIO = 5.0f;    // gearbox reduction
 
