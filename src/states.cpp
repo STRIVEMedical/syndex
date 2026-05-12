@@ -7,6 +7,7 @@
 #include "USB.h"
 #include "Wire.h"
 #include "joint.h"
+#include "main.h"
 #include <cstddef>
 
 #include "admittance_controller.h"
@@ -26,8 +27,9 @@ static const uint32_t STATUS_TELEM_INTERVAL_MS = 100; // 10 Hz
 // ── READY sub-state — file-scope so variables survive state re-entries ────────
 // Using file-scope (not static locals) means resetReadyState() can zero them on
 // every entry, preventing stale values if the system exits and re-enters READY.
-enum ReadySubState { ADMITTANCE, MOVING_TO_HOME, RESTORING };
+enum ReadySubState { ADMITTANCE, MOVING_TO_HOME, RESTORING, HOMED_IDLE };
 static ReadySubState readySubState          = ADMITTANCE;
+static bool          restoreAdmittanceAfterHome = true;
 static bool          readyTelemInit         = false;
 static bool          enteredReady           = false;
 static uint32_t      lastJointTelemMs       = 0;
@@ -54,6 +56,7 @@ static const uint32_t HOMING_LOG_INTERVAL_MS      = 500;
 
 static void resetReadyState() {
     readySubState          = ADMITTANCE;
+    restoreAdmittanceAfterHome = true;
     readyTelemInit         = false;
     enteredReady           = false;
     lastJointTelemMs       = 0;
@@ -74,6 +77,41 @@ static const uint32_t HOMING_TIMEOUT_MS = 300000UL; // 5-minute operator timeout
 static void resetHomingState() {
     homingEnteredMs    = 0;
     homingTimerStarted = false;
+}
+
+static void restartFromBoot(bool requireOperatorHoming) {
+    resetReadyState();
+    resetHomingState();
+    confirmHomePending = false;
+    moveToHomePending  = false;
+    if (requireOperatorHoming) {
+        clearHomedState();
+    }
+    currState = BOOTUP;
+}
+
+void requestStartHoming() {
+    if (currState != READY) {
+        moveToHomePending = false;
+        SerialUSB1.print("[HOMING] CMD_START_HOMING ignored in state ");
+        SerialUSB1.print(stateName(currState));
+        SerialUSB1.println("; homing move requires READY.");
+        return;
+    }
+
+    if (readySubState == MOVING_TO_HOME || readySubState == RESTORING) {
+        SerialUSB1.println("[HOMING] CMD_START_HOMING ignored; homing is already active.");
+        return;
+    }
+
+    restoreAdmittanceAfterHome = (readySubState == ADMITTANCE);
+    moveToHomePending = true;
+
+    if (restoreAdmittanceAfterHome) {
+        SerialUSB1.println("[HOMING] CMD_START_HOMING: in-lesson request from ADMITTANCE; admittance will be restored after homing.");
+    } else {
+        SerialUSB1.println("[HOMING] CMD_START_HOMING: normal/end-of-lesson request; admittance will stay off after homing.");
+    }
 }
 
 /* Terminates immediately, returning FALSE if target ODrive is providing valid connection.
@@ -421,9 +459,7 @@ void turnOnErrorLED(){
 void errorRecovery(){
     clearError();                  // reset currError to NO_ERROR
     OFFToggleLED(&Led::errorLED);  // turn off error LED
-    resetReadyState();             // clear READY sub-state before restarting
-    resetHomingState();            // clear HOMING timeout state before restarting
-    currState = BOOTUP;            // restart verification from beginning
+    restartFromBoot(false);        // restart verification from beginning
 }
 
 /*
@@ -651,9 +687,13 @@ void stateUpdate()
         // Stops admittance, switches each ODrive joint to position control one at a
         // time (order defined by HOMING_ORDER), and drives it to home_pos=0.
         // When all joints are done, transitions to RESTORING.
-        if (moveToHomePending && readySubState == ADMITTANCE) {
+        if (moveToHomePending && (readySubState == ADMITTANCE || readySubState == HOMED_IDLE)) {
             moveToHomePending = false;
-            SerialUSB1.println("[HOMING] Starting parallel homing.");
+            if (restoreAdmittanceAfterHome) {
+                SerialUSB1.println("[HOMING] Starting in-lesson homing; suspending admittance control.");
+            } else {
+                SerialUSB1.println("[HOMING] Starting normal/end-of-lesson homing; admittance will remain off.");
+            }
 
             // Stop any residual velocity commands from admittance before switching modes.
             for (int i = 0; i < NUM_JOINTS; i++) {
@@ -732,7 +772,13 @@ void stateUpdate()
 
             if (allDone) {
                 SerialUSB1.println("[HOMING] All joints homed.");
-                readySubState = RESTORING;
+                if (restoreAdmittanceAfterHome) {
+                    SerialUSB1.println("[HOMING] Homing complete; restoring admittance control.");
+                    readySubState = RESTORING;
+                } else {
+                    SerialUSB1.println("[HOMING] Homing complete; admittance remains off.");
+                    readySubState = HOMED_IDLE;
+                }
             }
         }
 
@@ -797,7 +843,7 @@ void stateUpdate()
         powerOffPeripherals();
         if (pwrPressed) {
             SerialUSB1.println("[DEBUG] Power button pressed during POWERINGOFF: restarting system");
-            currState = BOOTUP;
+            restartFromBoot(true);
         }
         break;
 

@@ -21,6 +21,10 @@ extern volatile bool pingReceived;
 
 void stateUpdate();
 
+// Queues CMD_START_HOMING using the current firmware control mode to decide
+// whether admittance should be restored after the homing move.
+void requestStartHoming();
+
 //BootUp state functions
 bool verifyODrive();
 bool verifyI2C();

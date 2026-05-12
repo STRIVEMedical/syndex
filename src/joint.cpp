@@ -160,6 +160,12 @@ bool isHomed() {
     return true;
 }
 
+void clearHomedState() {
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        joints[i].is_homed = false;
+    }
+}
+
 
 /*
  * Latches the current encoder position as zero on all active ODrives and external

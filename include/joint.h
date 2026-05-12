@@ -51,6 +51,9 @@ void printJointStatus();
 // Returns true if all ODrive-backed joints have had their zero reference established via confirmHome().
 bool isHomed();
 
+// Clears the in-memory homing latch so the next connection must run operator homing.
+void clearHomedState();
+
 // Latches the current encoder position as 0 on all active ODrives and marks joints homed.
 // Call this after the operator has physically placed the arm at the home pose.
 void confirmHome();

@@ -4,6 +4,7 @@
 #include <cmath>
 #include "USB.h"
 #include "joint.h"
+#include "states.h"
 
 // File-local helpers used only inside the USB module.
 static bool getNextPacket(packet& outPacket);
@@ -403,7 +404,7 @@ static void handleRequestTelem() {
 }
 
 static void handleStartHoming() {
-  moveToHomePending = true;
+  requestStartHoming();
   sendCmdAck();
 }
 
