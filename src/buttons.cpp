@@ -4,63 +4,104 @@
 #define TRIGGER_MAX_ADC 4046
 
 namespace buttonPins {
-    button_t powerButton = {39, INPUT, HIGH, HIGH};
-    // button_t toolSelect  = {39, INPUT, HIGH, HIGH};
-    // INPUT: analog read with threshold. Resting voltage ~1.7V, pressed = 3.3V.
-    // Threshold set at ~2.5V (3100/4096 counts) in isTriggerPressed().
-    button_t triggerInput = {40, INPUT, LOW, LOW};
+    button_t powerButton = {37, INPUT, HIGH, HIGH};
+    button_t toolSelect  = {39, INPUT, HIGH, HIGH};
+    button_t triggerInput = {40, INPUT, HIGH, HIGH};
 }
 
-static DebouncedButton dbPower = {HIGH, HIGH, 0};
-
-static int pollEdge(button_t* b, DebouncedButton& db) {
-    int reading = digitalRead(b->pin);
-    unsigned long now = millis();
-    if (reading != db.lastReading) {
-        db.lastDebounceTime = now;
-    }
-    db.lastReading = reading;
-    if ((now - db.lastDebounceTime) > db.debounceDelay) {
-        if (reading != db.stableState) {
-            db.stableState = reading;
-            // Invert logic: treat HIGH as pressed
-            return (db.stableState == HIGH) ? 1 : -1;
-        }
-    }
-    return 0;
+void buttonInit(button_t* b) {
+    pinMode(b->pin, b->io);
+    b->buttonState = digitalRead(b->pin);
+    b->lastButtonState = b->buttonState;
 }
 
-bool powerButtonWasPressed() {
-    return pollEdge(&buttonPins::powerButton, dbPower) == 1;
+void buttonUpdate(button_t* b) {
+    b->lastButtonState = b->buttonState;
+    b->buttonState = digitalRead(b->pin);
 }
 
-/* ========== TRIGGER CODE ========== */
-// C3AW-1A-8F is a snap-action switch (boolean only; no analog depth).
-// Read through ADC because this board sees unpressed around 1.7V and pressed
-// near 3.3V. Higher ADC values are treated as pressed.
+void Buttons::setup() {
+    analogReadResolution(12);
+    buttonInit(&buttonPins::powerButton);
+    buttonInit(&buttonPins::toolSelect);
+    buttonInit(&buttonPins::triggerInput);
+}
 
-// Returns true while the trigger is held (debounced).
-// Uses analogRead because the resting voltage is ~1.7V (above the digital HIGH
-// threshold), so digitalRead would report pressed at rest. Threshold set at
-// 3100/4096 (~2.5V) — safely above the 1.7V float and below the 3.3V press level.
-// 12-bit ADC (0-4095): unpressed ~2120, pressed ~4040. Threshold at midpoint.
-#define TRIGGER_PRESS_THRESHOLD 3000
-
-bool isTriggerPressed(button_t* b) {
-    static int   lastReading      = LOW;
-    static int   stableState      = LOW;
+void ToolCycleButton(button_t* b) {
+    static int lastReading = HIGH;
+    static int stableState = HIGH;
     static unsigned long lastDebounceTime = 0;
-    const  unsigned long DEBOUNCE_MS      = 20;
+    const unsigned long debounceDelay = 50;
 
-    int reading = (analogRead(b->pin) >= TRIGGER_PRESS_THRESHOLD) ? HIGH : LOW;
+    int reading = digitalRead(b->pin);
+
     if (reading != lastReading) {
         lastDebounceTime = millis();
     }
-    lastReading = reading;
 
-    if ((millis() - lastDebounceTime) > DEBOUNCE_MS) {
-        stableState = reading;
+    if ((millis() - lastDebounceTime) > debounceDelay) {
+        if (reading != stableState) {
+            stableState = reading;
+
+            if (stableState == LOW) {
+                Serial.println("Cycle button Pressed");
+            } else {
+                Serial.println("Cycle button Released");
+            }
+        }
     }
 
-    return (stableState == HIGH);
+    lastReading = reading;
+}
+
+void testPowerButton(button_t* b) {
+    static int lastReading = HIGH;
+    static int stableState = HIGH;
+    static unsigned long lastDebounceTime = 0;
+    const unsigned long debounceDelay = 5;
+
+    int reading = digitalRead(b->pin);
+
+    if (reading != lastReading) {
+        lastDebounceTime = millis();
+    }
+
+    if ((millis() - lastDebounceTime) > debounceDelay) {
+        if (reading != stableState) {
+            stableState = reading;
+
+            if (stableState == LOW) {
+                Serial.println("Power button Released");
+            } else {
+                Serial.println("Power button Pressed");
+            }
+        }
+    }
+
+    lastReading = reading;
+}
+
+float getTriggerDepth(button_t* b) {
+    int rawValue = constrain(analogRead(b->pin), TRIGGER_MIN_ADC, TRIGGER_MAX_ADC);
+    return (float)(rawValue - TRIGGER_MIN_ADC) / (TRIGGER_MAX_ADC - TRIGGER_MIN_ADC);
+}
+void triggerPulled(button_t* b) {
+    
+    static bool wasPressed = false;
+
+    float depth = getTriggerDepth(b);
+
+    if (depth > 0.01f) {
+        if (!wasPressed) {
+            //Serial.print("Trigger depth: ");
+            //Serial.println(depth);
+            Serial.println("Trigger Pressed");
+            wasPressed = true;
+        }
+    } else {
+        if (wasPressed) {
+            Serial.println("Trigger Released");
+            wasPressed = false;
+        }
+    }
 }
