@@ -1,3 +1,8 @@
+// Status-LED indicators (power/data/error) and their pin assignments
+// along with LED setup functions.
+//
+// For: Base ESP32
+
 #pragma once
 
 #include <Arduino.h>

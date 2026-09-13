@@ -1,5 +1,8 @@
-// comms.h
-// Unified communication-layer declarations (CAN + I2C)
+// Currently V1's ODrive CAN + I2C/AS5600 encoder bus layer.
+// NOTE: This will become the V2 CAN bus layer for the base's
+// SERVO42D Cartesian drivers (currently not developed though)
+//
+// For: Base ESP32
 
 #ifndef COMMS_H
 #define COMMS_H

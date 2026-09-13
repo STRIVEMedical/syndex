@@ -1,7 +1,10 @@
+// Virtual admittance loop: uses the per-axis force estimate
+// from force_estimation and the Unity-sourced feedback instructions
+// from haptics, and outputs motion commands for the Cartesian axes.
+//
+// For: Base ESP32
+
 #ifndef ADMITTANCE_H
-#define ADMITTANCE_H
-// This will include all of the definitions for functions and variables for the admittance src file
-#endif#ifndef ADMITTANCE_H
 #define ADMITTANCE_H
 
 // Gear ratio and motor Kt are defined in admittance_controller.cpp as

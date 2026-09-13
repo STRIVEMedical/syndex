@@ -1,3 +1,7 @@
+// Shared system state machine (BOOTUP -> IDLE -> ...).
+//
+// For: Both base and handle
+
 #ifndef STATES_H
 #define STATES_H
 

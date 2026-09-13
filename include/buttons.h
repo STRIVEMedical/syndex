@@ -1,3 +1,7 @@
+// Debounced digital-input reads for the handle's physical controls.
+//
+// Fpr: Handle ESP32
+
 #ifndef BUTTONS_H
 #define BUTTONS_H
 

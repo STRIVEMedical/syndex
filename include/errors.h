@@ -1,3 +1,8 @@
+// Shared error-code enum and error-state accessors (setError/getError/
+// clearError/errorCheck used in states.cpp, there is no errors.cpp).
+//
+// For: Both base + handle
+
 #ifndef ERROR_CODE_H
 #define ERROR_CODE_H
 

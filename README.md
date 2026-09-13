@@ -1,7 +1,9 @@
 
 # STRIVE Robotic Arm — Syndex Firmware Overview
 
-> Last updated: 2026-04-24 | Branch: `MVP_2026` | Firmware: Teensy 4.1 / PlatformIO | Software: Unity C#
+> Last updated: 2026-09-12 | Branch: `SyndexV2` | Firmware: Teensy 4.1 / PlatformIO | Software: Unity C#
+
+> **V2 in progress:** everything in this document still describes the previous V1 Teensy system. V2 (ESP32, dual-arm, SERVO42D/CAN, wireless handle) is not yet implemented. This document will be updated section-by-section as each V2 piece is implemented and validated on the hardware.
 
 
 ## What This System Is

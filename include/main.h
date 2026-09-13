@@ -1,3 +1,7 @@
+// Contains the main loop and setup functions, alongside state definitions.
+//
+// For: Base ESP32 (we need to make another main for the handle though)
+
 #ifndef MAIN_H
 #define MAIN_H
 
