@@ -4,7 +4,17 @@
 //
 // For: Handle ESP32
 
-#ifndef IMU_H
-#define IMU_H
 
-#endif
+#pragma once
+
+// Angles are in degrees.
+struct ImuOrientation {
+    float roll;
+    float pitch;
+    float yaw;
+};
+
+bool initIMU();
+void updateIMU();
+bool imuHasOrientation();
+ImuOrientation getIMUOrientation();
