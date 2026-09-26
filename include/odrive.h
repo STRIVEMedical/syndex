@@ -1,3 +1,4 @@
+// ODrive CAN bus interface and control logic from V1 (from V1, not used anymore)
 #ifndef ODRIVE_H
 #define ODRIVE_H
 

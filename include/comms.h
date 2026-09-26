@@ -1,6 +1,6 @@
 // Currently V1's ODrive CAN + I2C/AS5600 encoder bus layer.
-// NOTE: This will become the V2 CAN bus layer for the base's
-// SERVO42D Cartesian drivers (currently not developed though)
+// NOTE: This will become the V2 comms layer for the belt's
+// axis encoders (currently not developed though)
 //
 // For: Base ESP32
 

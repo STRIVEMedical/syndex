@@ -1,4 +1,4 @@
-// joint.h - Simple joint mapping for 6DOF arm
+// joint.h - Simple joint mapping for 6DOF arm (from V1, not used anymore)
 #ifndef JOINT_H
 #define JOINT_H
 

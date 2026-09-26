@@ -1,5 +1,5 @@
-// Converts X/Y/Z encoder stepper counts to Cartesian position (mm) and enforces
-// per-axis soft travel limits, reporting XYZ position/velocity over WiFi.
+// Converts X/Y/Z encoder reads to Cartesian position (mm) and enforces
+// reporting XYZ position/velocity over WiFi.
 //
 // For: Base ESP32
 
