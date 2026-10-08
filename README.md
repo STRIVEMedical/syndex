@@ -1,10 +1,68 @@
 
 # STRIVE Robotic Arm — Syndex Firmware Overview
 
-> Last updated: 2026-09-12 | Branch: `SyndexV2` | Firmware: Teensy 4.1 / PlatformIO | Software: Unity C#
+> Last updated: 2026-10-08 | Branch: `SyndexV2` | Firmware: ESP32 S3 DevKit C1 / PlatformIO + Raspberry Pi 5 / CMake (C++17)  | Software: Unity / C#
 
-> **V2 in progress:** everything in this document still describes the previous V1 Teensy system. V2 (ESP32, dual-arm, motorless system, wireless handle) is not yet implemented. This document will be updated section-by-section as each V2 piece is implemented and validated on the hardware.
+> **SynDex V2 (in progress):** V2 replaces the motorized Teensy/ODrive arm from V1 with two free-floating, battery-powered wireless handles. A Raspberry Pi 5 base finds an 850 nm IR LED on each handle with two OV9281 cameras, triangulates its XYZ, combines it with the handle's BNO085 IMU orientation into a pose, and streams that pose to the Unity laptop over Bluetooth serial (SPP); the handles talk to the Pi over UDP on the Pi's own WiFi access point. Each ESP32-S3 handle reports its IMU, trigger and dock state, and drives its IR LED and a vibration motor.
+>
+> **V1 lives on the `SyndexV1` branch.** Everything below the **repository layout** still describes the V1 Teensy system and will be updated after V2 is validated on the hardware.
 
+**Repository layout (V2):**
+
+```
+syndex/
+├── README.md                      this file (sections below the layout still describe V1)
+├── context.md                     Unity-side context: V2 overview + V1 arm/simulation notes
+├── .gitignore
+│
+├── shared/                        shared code: messages.h + errors.h are used by both builds
+│   ├── messages.h                 packet IDs, payload structs, framing, CRC-16/ARC
+│   ├── errors.h                   error codes
+│   ├── serial_framing.h           V1-style serial frame parser for the Bluetooth Unity link
+│   └── serial_framing.cpp         (compiled by the base build only)
+│
+├── base/                          Raspberry Pi 5 program (C++17, built with CMake)
+│   ├── CMakeLists.txt             builds syndex_base and syndex_calibrate
+│   ├── SETUP.md                   Pi setup guide: OS, cameras, handle WiFi AP, Bluetooth, systemd
+│   ├── setup.sh                   install script (skeleton)
+│   ├── calibration/               saved stereo calibration output
+│   ├── include/                   one .h per .cpp in src/
+│   ├── src/                       base program modules
+│   │   ├── main.cpp               startup, threads, main loop
+│   │   ├── states.cpp             state machine (V1 port, not built yet)
+│   │   ├── camera.cpp             capture both OV9281 cameras via libcamera
+│   │   ├── led_detect.cpp         find the IR LED blob in each image
+│   │   ├── stereo.cpp             load calibration, triangulate LED XYZ
+│   │   ├── pose.cpp               LED XYZ + IMU orientation -> handle pose
+│   │   ├── handle_link.cpp        UDP to/from the handles (pairs with handle/src/base_link.cpp)
+│   │   ├── unity_link.cpp         Bluetooth serial (SPP) to/from the Unity laptop
+│   │   ├── faults.cpp             fault detection, watchdog
+│   │   └── status_leds.cpp        base status LEDs (V1 port, not built yet)
+│   └── tools/                     extra executables
+│       └── calibrate.cpp          separate executable for stereo calibration
+│
+├── handle/                        ESP32-S3 handle firmware (Arduino framework, PlatformIO)
+│   ├── platformio.ini             build envs: handle firmware + IMU bench test
+│   ├── include/                   one .h per .cpp in src/
+│   ├── src/                       handle firmware modules
+│   │   ├── main.cpp               setup() / loop()
+│   │   ├── imu.cpp                BNO085 orientation
+│   │   ├── trigger.cpp            trigger input
+│   │   ├── ir_led.cpp             IR LED on/off/strobe
+│   │   ├── vibration.cpp          vibration motor
+│   │   ├── base_link.cpp          UDP to/from the Pi (pairs with base/src/handle_link.cpp)
+│   │   └── ota.cpp                over-the-air firmware updates
+│   └── test/                      bench tests
+│       └── imu_test.cpp           IMU bench test (env: handle-imu-test)
+│
+└── tools/                         laptop-side Python scripts
+    ├── terminal_dashboard.py      serial terminal dashboard (V1 debug tool)
+    └── bt_serial_test_client.py   stand-in for Unity over the Pi's Bluetooth COM port
+```
+
+**OLD V1 STUFF BELOW THIS**
+
+**vvvvvvvvvvvvvvvvvvvvvvv**
 
 ## What This System Is
 
