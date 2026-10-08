@@ -1,38 +1,48 @@
 #include "joint.h"
-#include "i2c.h"
+#include "comms.h"
 #include "odrive.h"
 
-// Array of all joints
-static Joint joints[NUM_JOINTS];
 
-// Map an ODrive pointer to a readable label.
-static const char* odriveLabel(const ODriveCAN* odrv) {
-    if (odrv == &odrv0) return "odrv0";
-    if (odrv == &odrv1) return "odrv1";
-    // if (odrv == &odrv2) return "odrv2";
-    // if (odrv == &odrv3) return "odrv3";
-    // if (odrv == &odrv4) return "odrv4";
-    // if (odrv == &odrv5) return "odrv5";
-    // if (odrv == &odrv6) return "odrv6";
-    return "unknown";
-}
 
-// Initialize joints with default mapping
-//CHANGE VALUES TO MATCH HARDWARE
+
+/*
+joint # |  Odrv/enc
+    0   |   odrv 0   ROTATE
+    1   |   odrv 1   REACH
+    2   |   odrv 2   LIFT
+    3   |   enc 0    PITCH
+    4   |   enc 1    YAW
+    5   |   enc 2    ROLL
+
+*/
+// ── Homing gains (per joint) ──────────────────────────────────────────────────
+// home_vel_gain / home_vel_int_gain are used only during the return-to-home move.
+// They match each ODrive's configured velocity loop gains (confirmed via web GUI).
+// Tune these to change homing behaviour — admittance gains are in odrive.cpp.
+// Max homing current ≈ home_vel_gain × HOMING_VEL_LIMIT (2.0 t/s).
+// Field order: odrive, user_data, sensor_ch, max_torque, home_pos, use_onboard_encoder,
+//              home_vel_gain, home_vel_int_gain, label, angle, rawValue, velocity, is_homed, target_torque
+Joint joints[NUM_JOINTS] = {
+    // odrive  user_data         sensor_ch         max_t  home   onboard  ratio  home_vg  home_vi  deadband  label      angle  raw  vel    homed  target_t
+    { &odrv0,  &odrv0_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.01f,   0.005f,  0.01f,    "ROTATE",  0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv1,  &odrv1_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.03f,   0.0f,    0.01f,    "REACH",   0.0f,  0,   0.0f,  false, 0.0f },
+    { &odrv2,  &odrv2_user_data, INACTIVE_CHANNEL, 5.0f,  0.0f,  true,    5.0f,  0.03f,   0.0f,    0.01f,    "LIFT",    0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          0,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "PITCH",   0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          1,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "YAW",     0.0f,  0,   0.0f,  false, 0.0f },
+    { nullptr, nullptr,          2,                0.0f,  0.0f,  false,   1.0f,  0.0f,    0.0f,    0.0f,     "ROLL",    0.0f,  0,   0.0f,  false, 0.0f },
+};
+
 void initJoints() {
-    // Default mapping - CHANGE THESE TO MATCH YOUR ARM!
-    // Format: {odrive_id, sensor_channel, angle, raw_value, is_homed, target_torque, home_angle, max_torque}
-    
+    // Keep hardware mapping and labels; reset only runtime state.
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        joints[i].angle = 0.0f;
+        joints[i].rawValue = 0;
+        joints[i].velocity = 0.0f;
+        joints[i].is_homed = false;
+        joints[i].target_torque = 0.0f;
+    }
 
-    joints[0] = {&odrv0, 0, 0.0, 0.0, false, 0.0, 0.0, 5.0};   // pulley1
-    joints[1] = {&odrv1, 1, 0.0, 0.0, false, 0.0, 0.0, 5.0};   // pulley2
-    // joints[2] = {&odrv2, 2, 0.0, 0.0, false, 0.0, 90.0, 3.0};  // arm_3
-    // joints[3] = {&odrv3, 3, 0.0, 0.0, false, 0.0, 0.0, 2.0};   // part_18
-    // joints[4] = {&odrv4, 4, 0.0, 0.0, false, 0.0, 0.0, 1.0};   // manipulatortestassem
-    // joints[5] = {&odrv5, 5, 0.0, 0.0, false, 0.0, 0.0, 0.5};   // (wrist joint)
-    // joints[6] = {&odrv6, 6, 0.0, 0.0, false, 0.0, 0.0, 0.5};   // (tool joint)
-    
-    Serial.println("Joints initialized with configured mapping");
+    SerialUSB1.println("Joints initialized with configured mapping");
 }
 
 // Get joint pointer by ID
@@ -44,39 +54,186 @@ Joint* getJoint(uint8_t id) {
     return &joints[id];
 }
 
-// Read all joint angles and raw value from AS5600 encoders
-void readJointAnglesAndRaw() {
+
+// Read from all odrives and external encoders (also reads and updated velocity)
+void readJointAngles(){
+    for(int i = 0; i < NUM_JOINTS; i++){
+        //Joint reads from Odrive encoder
+        if(joints[i].use_onboard_encoder){
+            //read position from CAN callback
+            float turns = joints[i].user_data->last_feedback.Pos_Estimate;  // motor turns
+            float velocity_est = joints[i].user_data->last_feedback.Vel_Estimate;  // motor turns/s
+            joints[i].angle    = (turns / joints[i].gear_ratio) * 360.0f;  // joint degrees
+            joints[i].velocity = (velocity_est / joints[i].gear_ratio) * 360.0f;  // joint deg/s
+        }else{
+            //Joint reads from external encoder
+            tcaSelect(joints[i].sensor_channel);
+            delayMicroseconds(200);
+            uint16_t raw  = readRawAS5600();
+            joints[i].rawValue = raw;
+            if (raw != 0xFFFF) {
+                joints[i].angle = computeAngle(joints[i].sensor_channel, raw);
+                joints[i].velocity = 0.0f;
+            } else {
+                SerialUSB1.print("[WARN] AS5600 read failed on channel ");
+                SerialUSB1.println((int)joints[i].sensor_channel);
+                joints[i].velocity = 0.0f;
+            }
+            pumpEvents(can_intf); // keep CAN heartbeats alive between I2C reads
+        }
+    }
+    // Print all joint angles side by side
+    // SerialUSB1.print("[DEBUG] Joint angles: ");
+    // for(int i = 0; i < NUM_JOINTS; i++){
+    //     SerialUSB1.print(joints[i].angle, 4);
+    //     if(i < NUM_JOINTS - 1) SerialUSB1.print(" | ");
+    // }
+    // SerialUSB1.println();
+    // delay(100); // Small delay for readability
+}
+
+
+// Print joint status to serial with nice formatting
+void printJointStatus() {
+    // Header
+    SerialUSB1.println();
+    SerialUSB1.println("======================================== JOINT STATUS ========================================");
+    SerialUSB1.println(" ID | Label         | Angle      | Sensor        | Velocity  | Homed | Torque");
+    SerialUSB1.println("----+---------------+------------+---------------+-----------+-------+----------");
+    
+    // Joint data
     for (int i = 0; i < NUM_JOINTS; i++) {
-        // Select the correct I2C mux channel for this joint
-        tcaSelect(joints[i].sensor_channel);
-        delayMicroseconds(200);
+        // Joint ID
+        SerialUSB1.print("  ");
+        SerialUSB1.print(i);
+        SerialUSB1.print(" | ");
         
-        // Read raw encoder value
-        joints[i].rawValue  = readRawAS5600();
-        // Convert to angle and store in joint
-        joints[i].angle = computeAngle(i, joints[i].rawValue); 
+        // Label (left-aligned, 13 chars)
+        const char* label = (joints[i].label != nullptr) ? joints[i].label : "UNNAMED";
+        SerialUSB1.print(label);
+        for (int pad = 0; pad < (13 - (int)strlen(label)); pad++) SerialUSB1.print(" ");
+        SerialUSB1.print(" | ");
+        
+        // Angle (right-aligned, 10 chars with one decimal)
+        SerialUSB1.print("     ");
+        SerialUSB1.print(joints[i].angle, 1);
+        SerialUSB1.print("° | ");
+        
+        // Sensor channel/type (left-aligned, 13 chars)
+        if (joints[i].sensor_channel == INACTIVE_CHANNEL) {
+            SerialUSB1.print("ODrive      ");
+        } else {
+            SerialUSB1.print("CH");
+            SerialUSB1.print(joints[i].sensor_channel);
+            for (int pad = 0; pad < (11 - (joints[i].sensor_channel >= 10 ? 2 : 1)); pad++) SerialUSB1.print(" ");
+        }
+        SerialUSB1.print(" | ");
+        
+        // Velocity (right-aligned, 9 chars)
+        SerialUSB1.print("   ");
+        SerialUSB1.print(joints[i].velocity, 2);
+        SerialUSB1.print(" | ");
+        
+        // Homed status
+        SerialUSB1.print(joints[i].is_homed ? "YES  " : "NO   ");
+        SerialUSB1.print("| ");
+        
+        // Torque
+        SerialUSB1.print(joints[i].target_torque, 2);
+        SerialUSB1.println(" Nm");
+    }
+    SerialUSB1.println("==========================================================================================");
+    SerialUSB1.println();
+}
+
+/*
+ * Returns true if all ODrive-backed joints have had their home reference
+ * established via confirmHome(). Used by the CONNECTED state to decide
+ * whether to enter HOMING on boot (always false after a power cycle).
+ */
+bool isHomed() {
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        if (joints[i].use_onboard_encoder && !joints[i].is_homed) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void clearHomedState() {
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        joints[i].is_homed = false;
     }
 }
 
-// Print joint status to serial
-void printJointStatus() {
-    Serial.println("=== Joint Status ===");
+
+/*
+ * Latches the current encoder position as zero on all active ODrives and external
+ * encoders, then marks every ODrive-backed joint as homed.
+ *
+ * ODrive joints: each drive is idled before setAbsolutePosition() is called so
+ * that the position step does not cause a velocity spike in the closed-loop
+ * controller. Velocity control mode is set explicitly before re-entering
+ * closed-loop, regardless of what is stored in ODrive flash.
+ *
+ * External encoder joints: zeroOffset[] and multi-turn counters are reset to
+ * the current raw reading so computeAngle() returns 0 at the home pose.
+ */
+void confirmHome() {
+    // ── Phase A: zero external encoder joints ────────────────────────────────
     for (int i = 0; i < NUM_JOINTS; i++) {
-        Serial.print("J");
-        Serial.print(i);
-        Serial.print(": ODrive");
-        Serial.print(odriveLabel(joints[i].odrive));
-        Serial.print(", SensorCH");
-        Serial.print(joints[i].sensor_channel);
-        Serial.print(", Angle=");
-        Serial.print(joints[i].angle, 1);
-        Serial.print("°, Home=");
-        Serial.print(joints[i].home_angle, 0);
-        Serial.print("°, Homing=");
-        Serial.print(joints[i].is_homed ? "YES" : "NO");
-        Serial.print(", Torque=");
-        Serial.print(joints[i].target_torque, 2);
-        Serial.println("Nm");
+        if (joints[i].use_onboard_encoder || joints[i].sensor_channel == INACTIVE_CHANNEL) continue;
+        tcaSelect(joints[i].sensor_channel);
+        delayMicroseconds(200);
+        uint16_t raw = readRawAS5600();
+        if (raw != 0xFFFF) {
+            uint8_t ch = joints[i].sensor_channel;
+            zeroOffset[ch] = raw * 360.0f / 4096.0f;
+            turns[ch]      = 0;
+            lastRaw[ch]    = raw;
+            SerialUSB1.print("[HOMING] External enc ch");
+            SerialUSB1.print(ch);
+            SerialUSB1.print(" zeroed raw=");
+            SerialUSB1.println(raw);
+        } else {
+            SerialUSB1.print("[HOMING] WARNING: AS5600 read failed on ch");
+            SerialUSB1.println(joints[i].sensor_channel);
+        }
     }
-    Serial.println("====================");
+
+    // Phase B: for each ODrive joint — idle → set position → re-arm in velocity mode
+    for (int i = 0; i < NUM_JOINTS; i++) {
+        if (!joints[i].use_onboard_encoder || joints[i].odrive == nullptr) continue;
+
+        // 1. idle the drive before touching pos_estimate.
+        //    This prevents the velocity spike that setAbsolutePosition causes
+        //    when called during closed-loop control.
+        joints[i].odrive->setState(ODriveAxisState::AXIS_STATE_IDLE);
+        delay(50);
+        pumpEvents(can_intf);
+
+        // 2. Set encoder reference to 0 while drive is idle (no control loop = no spike).
+        joints[i].odrive->setAbsolutePosition(0.0f);
+        delay(20);
+        pumpEvents(can_intf);
+
+        // 3. Set velocity control mode and gains BEFORE re-entering closed loop.
+        //    This ensures the drive enters closed loop in the correct mode
+        //    regardless of what is stored in ODrive flash.
+        enable_velocity_control(*joints[i].odrive, *joints[i].user_data, i);
+
+        // 4. Clear any errors accumulated during the idle/position-set sequence.
+        joints[i].odrive->clearErrors();
+        delay(20);
+        pumpEvents(can_intf);
+
+        // 5. Re-enter closed-loop control.
+        enable_closed_loop(*joints[i].odrive, *joints[i].user_data, i);
+
+        joints[i].is_homed = true;
+        SerialUSB1.print("[HOMING] Joint "); SerialUSB1.print(i);
+        SerialUSB1.println(" homed and re-armed in velocity mode.");
+    }
+
+    SerialUSB1.println("[HOMING] All joints homed.");
 }

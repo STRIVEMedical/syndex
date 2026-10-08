@@ -1,6 +1,3 @@
-// odrive.cpp
-// ODrive CAN communication and control functions for surgical robot arm
-// 
 // Key Concepts:
 // - ODrive operates in different control modes (position/velocity/torque)
 // - This implementation focuses on torque control for gravity compensation
@@ -8,51 +5,81 @@
 // - CAN bus communicates with ODrive motor controllers
 
 #include <Arduino.h>
-#include "ODriveCAN.h"
 #include "odrive.h"
-#include <FlexCAN_T4.h>
-#include "ODriveFlexCAN.hpp"
-#include "i2c.h"
 
-// Define global instances declared as extern in odrive.h
-// CAN interface for Teensy 4.1 (CAN1 port)
-FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can_intf;
+// ── Admittance control gains ──────────────────────────────────────────────────
+// Used by enable_velocity_control(), which is called on boot and after homing.
+// These control how compliant the arm feels when moved by hand.
+// Tune these to adjust admittance feel — homing is unaffected.
+static const float ADMITTANCE_VEL_GAIN_0       = 0.01f;  // ODrive 0 (ROTATE)
+static const float ADMITTANCE_VEL_INT_GAIN_0   = 0.0f;
+// static const float ADMITTANCE_VEL_GAIN_1_2     = 0.01f;  // ODrives 1 & 2 (REACH / LIFT)
+// static const float ADMITTANCE_VEL_INT_GAIN_1_2 = 0.01f;
+static const float ADMITTANCE_VEL_GAIN_1_2     = 0.009f;  // ODrives 1 & 2 (REACH / LIFT)
+static const float ADMITTANCE_VEL_INT_GAIN_1_2 = 0.005f;
+static const float ADMITTANCE_VEL_LIMIT        = 30.0f; // high — current_soft_max limits resistance, not this
+static const float ADMITTANCE_CURRENT_SOFT_MAX =  3.0f;
 
-// ODrive instances with unique node IDs
-ODriveCAN odrv0(wrap_can_intf(can_intf), ODRV0_NODE_ID);  // Node ID 0
-ODriveCAN odrv1(wrap_can_intf(can_intf), ODRV1_NODE_ID);  // Node ID 1
+// Per-node assist authority for the heavier manipulator. Keep J0/J1 at the
+// previous limit and give J2/LIFT a conservative bump for gravity load.
+static const float ASSIST_CURRENT_SOFT_MAX_0 = 3.0f;
+static const float ASSIST_CURRENT_SOFT_MAX_1 = 3.0f;
+static const float ASSIST_CURRENT_SOFT_MAX_2 = 4.0f;
 
-// Array of ODrive pointers for easy iteration
-ODriveCAN* odrives[] = { &odrv0, &odrv1 };
+static const char* controlModeName(uint8_t mode) {
+  switch (mode) {
+    case ODriveControlMode::CONTROL_MODE_VOLTAGE_CONTROL: return "VOLTAGE";
+    case ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL: return "TORQUE";
+    case ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL: return "VELOCITY";
+    case ODriveControlMode::CONTROL_MODE_POSITION_CONTROL: return "POSITION";
+    default: return "UNKNOWN";
+  }
+}
 
-// User data structures for storing ODrive status information
-ODriveUserData odrv0_user_data;  // Status data for ODrive 0
-ODriveUserData odrv1_user_data;  // Status data for ODrive 1
+static const char* inputModeName(uint8_t mode) {
+  switch (mode) {
+    case ODriveInputMode::INPUT_MODE_INACTIVE: return "INACTIVE";
+    case ODriveInputMode::INPUT_MODE_PASSTHROUGH: return "PASSTHROUGH";
+    case ODriveInputMode::INPUT_MODE_VEL_RAMP: return "VEL_RAMP";
+    case ODriveInputMode::INPUT_MODE_POS_FILTER: return "POS_FILTER";
+    case ODriveInputMode::INPUT_MODE_MIX_CHANNELS: return "MIX_CHANNELS";
+    case ODriveInputMode::INPUT_MODE_TRAP_TRAJ: return "TRAP_TRAJ";
+    case ODriveInputMode::INPUT_MODE_TORQUE_RAMP: return "TORQUE_RAMP";
+    case ODriveInputMode::INPUT_MODE_MIRROR: return "MIRROR";
+    case ODriveInputMode::INPUT_MODE_TUNING: return "TUNING";
+    default: return "UNKNOWN";
+  }
+}
 
-/* =========================
- * CAN SETUP
- * ========================= */
+static void printLastControllerMode(const ODriveUserData& data, uint8_t node_id) {
+  if (!data.received_last_controller_mode || !data.received_last_input_mode) {
+    SerialUSB1.print("[ODRIVE] Node ");
+    SerialUSB1.print(node_id);
+    SerialUSB1.println(" controller mode unknown");
+    return;
+  }
 
-/**
- * @brief Initializes the CAN bus interface with ODrive-compatible settings
- * 
- * @return true if CAN initialization succeeds, false otherwise
- * 
- * @usage Call once during system initialization
- * @note Configures:
- *   - 250kbps baud rate (ODrive default)
- *   - FIFO buffer for efficient message handling
- *   - Interrupt-driven reception
- *   - Callback routing for all incoming messages
- */
-bool setupCan() {
-  can_intf.begin();
-  can_intf.setBaudRate(CAN_BAUDRATE);
-  can_intf.setMaxMB(16);
-  can_intf.enableFIFO();
-  can_intf.enableFIFOInterrupt();
-  can_intf.onReceive(onCanMessage);
-  return true;
+  SerialUSB1.print("[ODRIVE] Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.print(" mode controller=");
+  SerialUSB1.print(controlModeName(data.last_controller_mode.Control_Mode));
+  SerialUSB1.print(" (0x");
+  SerialUSB1.print(data.last_controller_mode.Control_Mode, HEX);
+  SerialUSB1.print(") input=");
+  SerialUSB1.print(inputModeName(data.last_input_mode.Input_Mode));
+  SerialUSB1.print(" (0x");
+  SerialUSB1.print(data.last_input_mode.Input_Mode, HEX);
+  SerialUSB1.println(")");
+}
+
+/* Returns true if ODrive data indicates a heartbeat has been received, and the heartbeat age is not timed-out */
+bool odriveHeartbeatFresh(const ODriveUserData& data, uint32_t now_ms, uint32_t timeout_ms) {
+  return data.received_heartbeat &&
+         static_cast<uint32_t>(now_ms - data.last_heartbeat_ms) <= timeout_ms;
+}
+
+bool odriveHeartbeatFresh(const ODriveUserData& data) {
+  return odriveHeartbeatFresh(data, millis(), ODRIVE_HEARTBEAT_TIMEOUT_MS);
 }
 
 /* =========================
@@ -69,18 +96,17 @@ bool setupCan() {
  * @warning This sets position control - not suitable for gravity compensation
  * @note Repeatedly sends state command until ODrive confirms mode change
  */
-void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data) {
-  while (data.last_heartbeat.Axis_State !=
-         ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL) {
-    odrv.clearErrors();
-    delay(1);
-    odrv.setState(ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL);
+void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
+  odrv.clearErrors();
+  odrv.setState(ODriveAxisState::AXIS_STATE_CLOSED_LOOP_CONTROL);
 
-    for (int i = 0; i < 15; i++) {
-      delay(10);
-      pumpEvents(can_intf);
-    }
+  for (int i = 0; i < 15; i++) {
+    delay(10);
+    pumpEvents(can_intf);
   }
+  SerialUSB1.print("[ODRIVE] Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.println(" closed loop enabled");
 }
 
 /**
@@ -96,118 +122,82 @@ void enable_closed_loop(ODriveCAN &odrv, ODriveUserData &data) {
  *   - Gravity counter-torque application
  * @warning ODrive must be pre-configured via USB for torque control compatibility
  */
-void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data) {
-  // Wait until ODrive confirms torque control and passthrough input mode
-  while ((data.last_controller_mode.Control_Mode != 
-        ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL) && 
-        (data.last_input_mode.Input_Mode != 
-        ODriveInputMode::INPUT_MODE_PASSTHROUGH)) {
-    
-    odrv.clearErrors(); 
-    delay(1);
-    
-    // Set control mode to torque control and Set input mode to passthrough (direct torque commands)
-    odrv.setControllerMode(ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL, ODriveInputMode::INPUT_MODE_PASSTHROUGH);
-    
-
-
-    // Process CAN messages to update status
-    for (int i = 0; i < 15; i++) {
-      delay(10);
-      pumpEvents(can_intf);
-    }
+void enable_torque_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {    
+  // Set control mode to torque control and Set input mode to passthrough (direct torque commands)
+  odrv.setControllerMode(
+  ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL, 
+  ODriveInputMode::INPUT_MODE_PASSTHROUGH);
+  data.last_controller_mode.Control_Mode = ODriveControlMode::CONTROL_MODE_TORQUE_CONTROL;
+  data.last_input_mode.Input_Mode = ODriveInputMode::INPUT_MODE_PASSTHROUGH;
+  data.received_last_controller_mode = true;
+  data.received_last_input_mode = true;
+  // Process CAN messages to update status
+  for (int i = 0; i < 15; i++) {
+    delay(10);
+    pumpEvents(can_intf);
   }
-  Serial.println("Torque control enabled");
+  SerialUSB1.print("[ODRIVE] Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.println(" torque mode enabled");
+  printLastControllerMode(data, node_id);
 }
 
-/* =========================
- * CAN CALLBACKS
- * ========================= */
+void enable_velocity_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
+  odrv.setControllerMode(
+    ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL,
+    ODriveInputMode::INPUT_MODE_PASSTHROUGH);
 
-/**
- * @brief Callback function for ODrive heartbeat messages
- * 
- * @param msg Heartbeat message containing axis state and error codes
- * @param user_data Pointer to ODriveUserData structure for this ODrive
- * 
- * @usage Automatically called by ODriveCAN library on heartbeat reception
- * @note Heartbeat messages are sent periodically by ODrive (typically 10-100Hz)
- * @important Updates:
- *   - Last known axis state (idle, closed loop, etc.)
- *   - Connection status flag
- *   - Error conditions if present
- */
-void onHeartbeat(Heartbeat_msg_t& msg, void* user_data) {
-  ODriveUserData* ud = (ODriveUserData*)user_data;
-  ud->last_heartbeat = msg;
-  ud->received_heartbeat = true;
-}
-
-/**
- * @brief Callback function for ODrive encoder feedback messages
- * 
- * @param msg Encoder estimates message containing position and velocity
- * @param user_data Pointer to ODriveUserData structure for this ODrive
- * 
- * @usage Automatically called by ODriveCAN library on feedback reception
- * @note Feedback rate should match control loop frequency (typically 1-10kHz)
- * @important Updates:
- *   - Motor encoder position (in turns)
- *   - Motor encoder velocity (in turns/s)
- *   - Used for closed-loop control monitoring
- */
-void onFeedback(Get_Encoder_Estimates_msg_t& msg, void* user_data) {
-  ODriveUserData* ud = (ODriveUserData*)user_data;
-  ud->last_feedback = msg;
-  ud->received_feedback = true;
-}
-
-/**
- * @brief Routes incoming CAN messages to all registered ODrive instances
- * 
- * @param msg Raw CAN message received by FlexCAN_T4
- * 
- * @usage Registered as callback to FlexCAN_T4's onReceive
- * @note Each ODrive instance filters messages based on its node ID
- * @important Called for EVERY CAN message - keep efficient
- */
-void onCanMessage(const CAN_message_t& msg) {
-  for (auto odrive : odrives) {
-    onReceive(msg, *odrive);
+  float vel_gain, vel_int_gain, current_soft_max;
+  if (node_id == 0) {
+    vel_gain     = ADMITTANCE_VEL_GAIN_0;
+    vel_int_gain = ADMITTANCE_VEL_INT_GAIN_0;
+    current_soft_max = ASSIST_CURRENT_SOFT_MAX_0;
+  } else if (node_id == 1) {
+    vel_gain     = ADMITTANCE_VEL_GAIN_1_2;
+    vel_int_gain = ADMITTANCE_VEL_INT_GAIN_1_2;
+    current_soft_max = ASSIST_CURRENT_SOFT_MAX_1;
+  } else {
+    vel_gain     = ADMITTANCE_VEL_GAIN_1_2;
+    vel_int_gain = ADMITTANCE_VEL_INT_GAIN_1_2;
+    current_soft_max = ASSIST_CURRENT_SOFT_MAX_2;
   }
+  odrv.setVelGains(vel_gain, vel_int_gain);
+  odrv.setLimits(ADMITTANCE_VEL_LIMIT, current_soft_max);
+
+  data.last_controller_mode.Control_Mode = ODriveControlMode::CONTROL_MODE_VELOCITY_CONTROL;
+  data.last_input_mode.Input_Mode        = ODriveInputMode::INPUT_MODE_PASSTHROUGH;
+  data.received_last_controller_mode     = true;
+  data.received_last_input_mode          = true;
+
+  for (int i = 0; i < 15; i++) { delay(10); pumpEvents(can_intf); }
+
+  SerialUSB1.print("[ODRIVE] Node "); SerialUSB1.print(node_id);
+  SerialUSB1.println(" velocity mode enabled");
+  SerialUSB1.print("[ODRIVE] Node "); SerialUSB1.print(node_id);
+  SerialUSB1.print(" vel_gain=");       SerialUSB1.print(vel_gain, 4);
+  SerialUSB1.print(" vel_int=");        SerialUSB1.print(vel_int_gain, 4);
+  SerialUSB1.print(" vel_limit=");      SerialUSB1.print(ADMITTANCE_VEL_LIMIT, 2);
+  SerialUSB1.print(" cur_soft_max=");   SerialUSB1.println(current_soft_max, 2);
+  printLastControllerMode(data, node_id);
 }
 
-/* =========================
- * GLOBAL / SYSTEM INIT
- * ========================= */
-
-/**
- * @brief Initializes all communication subsystems for the surgical arm
- * 
- * @return true if all subsystems initialize successfully, false otherwise
- * 
- * @usage Called once at system startup before any ODrive initialization
- * @note Initializes in this order:
- *   1. Serial debug interface (115200 baud)
- *   2. CAN bus communication
- *   3. I2C multiplexer and AS5600 encoders
- * @warning System will halt if initialization fails
- */
-bool initOdriveSystem() {
-  Serial.begin(115200);
-  delay(200);
-
-  if (!setupCan()) {
-    Serial.println("CAN init failed");
-    return false;
+void enable_position_control(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
+  odrv.setControllerMode(
+    ODriveControlMode::CONTROL_MODE_POSITION_CONTROL,
+    ODriveInputMode::INPUT_MODE_PASSTHROUGH);
+  data.last_controller_mode.Control_Mode = ODriveControlMode::CONTROL_MODE_POSITION_CONTROL;
+  data.last_input_mode.Input_Mode = ODriveInputMode::INPUT_MODE_PASSTHROUGH;
+  data.received_last_controller_mode = true;
+  data.received_last_input_mode = true;
+  for (int i = 0; i < 15; i++) {
+    delay(10);
+    pumpEvents(can_intf);
   }
-
-  // Initialize I2C sensors (AS5600 absolute encoders via TCA9548A mux)
-  setupI2C();
-
-  Serial.println("CAN & I2C READY");
-  return true;
+  SerialUSB1.print("[ODRIVE] Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.println(" position mode enabled");
 }
+
 
 /* =========================
  * PER-ODRIVE INIT (GENERAL)
@@ -218,33 +208,89 @@ bool initOdriveSystem() {
  * 
  * @param odrv Reference to the ODrive instance to initialize
  * @param data Reference to the ODrive's status data structure
+ * @param node_id CAN node ID of this ODrive (0, 1, or 2)
  * 
  * @return true if ODrive initializes successfully, false otherwise
  * 
- * @usage Called for each ODrive in the system (typically 7 for 7DOF arm)
+ * @usage Called for each ODrive in the system
  * @note Initialization sequence:
  *   1. Register callbacks for heartbeat and feedback
  *   2. Wait for heartbeat to confirm ODrive presence on CAN bus
  *   3. Enable torque control mode for gravity compensation
  * @warning Blocks until heartbeat received - ensure ODrive is powered
  */
-bool initOdrive(ODriveCAN &odrv, ODriveUserData &data) {
-  // Register callbacks for status updates
-  odrv.onStatus(onHeartbeat, &data);
-  odrv.onFeedback(onFeedback, &data);
-
+bool initOdrive(ODriveCAN &odrv, ODriveUserData &data, uint8_t node_id) {
+  // Callbacks already pre-registered in preInitOdriveCallbacks() before CAN started
+  
   // Wait for heartbeat to confirm ODrive is online
-  Serial.println("Waiting for ODrive...");
-  while (!data.received_heartbeat) {
+  SerialUSB1.print("[ODRIVE] Waiting for node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.println("...");
+  uint32_t waitStartMs = millis();
+  while (!odriveHeartbeatFresh(data, millis(), ODRIVE_HEARTBEAT_TIMEOUT_MS)) {
+    if (static_cast<uint32_t>(millis() - waitStartMs) >= ODRIVE_INIT_HEARTBEAT_TIMEOUT_MS) {
+      SerialUSB1.print("[ODRIVE] Node ");
+      SerialUSB1.print(node_id);
+      SerialUSB1.println(" heartbeat timeout");
+      return false;
+    }
     pumpEvents(can_intf);
   }
-  Serial.println("ODrive Found!");
+  SerialUSB1.print("[ODRIVE] Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.print(" found, axis_state=0x");
+  SerialUSB1.println(data.last_heartbeat.Axis_State, HEX);
 
-  // Enable torque control mode (required for gravity compensation)
-  Serial.println("Enabling torque control and input passthrough...");
-  enable_torque_control(odrv, data);
-  Serial.println("ODrive Running!");
+  // Clear any stale errors from the previous session (e.g. disarm=0x8000 velocity
+  // limit violation) so they don't block the closed-loop transition or fail verifyODrive().
+  odrv.clearErrors();
+  delay(20);
+  pumpEvents(can_intf);
+
+  // Apply soft gains and velocity control mode BEFORE entering closed loop.
+  // If gains are set after setState(CLOSED_LOOP), the drive briefly runs with
+  // whatever high gains are stored in flash, which can immediately trip an
+  // encoder/velocity error before our safe values take effect.
+  SerialUSB1.print("[ODRIVE] Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.println(" setting velocity mode + soft gains (pre-arm)...");
+  enable_velocity_control(odrv, data, node_id);
+
+  SerialUSB1.print("[ODRIVE] Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.println(" entering closed loop...");
+  enable_closed_loop(odrv, data, node_id);
+  SerialUSB1.print("[ODRIVE] Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.println(" running");
   return true;
+}
+
+/* =========================
+ * PRE-INIT CALLBACKS
+ * ========================= */
+
+/**
+ * @brief Pre-registers ODrive callbacks before CAN messaging starts
+ * 
+ * This prevents the "missing callback" error that occurs when heartbeats
+ * arrive before callbacks are registered in initOdrive().
+ * 
+ * @usage Called in setup() before any state machine transitions
+ */
+void preInitOdriveCallbacks() {
+  odrv0.onStatus(onHeartbeat, &odrv0_user_data);
+  odrv0.onFeedback(onFeedback, &odrv0_user_data);
+  odrv0.onCurrents(onCurrents, &odrv0_user_data);
+  
+  odrv1.onStatus(onHeartbeat, &odrv1_user_data);
+  odrv1.onFeedback(onFeedback, &odrv1_user_data);
+  odrv1.onCurrents(onCurrents, &odrv1_user_data);
+
+  odrv2.onStatus(onHeartbeat, &odrv2_user_data);
+  odrv2.onFeedback(onFeedback, &odrv2_user_data);
+  odrv2.onCurrents(onCurrents, &odrv2_user_data);
+
 }
 
 /* =========================
@@ -257,27 +303,19 @@ bool initOdrive(ODriveCAN &odrv, ODriveUserData &data) {
  * @return true if all ODrives initialize successfully, false otherwise
  * 
  * @usage Main initialization function called from setup() in main.cpp
- * @note Current implementation initializes 2 ODrives (for base joints)
- *       Should be expanded to 7 ODrives for full 7DOF control
+ * @note Current implementation initializes the 3 ODrives used by joints 0-2.
  * @warning If any ODrive fails to initialize, entire system startup fails
  */
 bool initMultiOdrives() {
-  // Initialize communication subsystems
-  if (!initOdriveSystem()) {
+  //comms verified in verifyOdrive
+
+  if (!initOdrive(odrv0, odrv0_user_data, 0)
+    || !initOdrive(odrv1, odrv1_user_data, 1)
+    || !initOdrive(odrv2, odrv2_user_data, 2)) {
     return false;
   }
 
-  // Initialize ODrive 0 (typically base joint 1 - pulley1)
-  if (!initOdrive(odrv0, odrv0_user_data)) {
-    return false;
-  }
-  
-  // Initialize ODrive 1 (typically base joint 2 - pulley2)
-  if (!initOdrive(odrv1, odrv1_user_data)) {
-    return false;
-  }
-
-  Serial.println("All ODrives Running!");
+  SerialUSB1.println("[ODRIVE] All nodes running");
   return true;
 }
 
@@ -288,35 +326,55 @@ bool initMultiOdrives() {
  * @note Immediately disables all motors and sets system to safe state
  */
 void emergencyStop() {
+  static bool printed = false;
   for (auto odrive : odrives) {
     odrive->setState(ODriveAxisState::AXIS_STATE_IDLE);
+    odrive->setTorque(0.0);
   }
-
-  Serial.println("Emergency Stop!");
+  if (!printed) {
+    SerialUSB1.println("[SAFETY] Emergency stop asserted");
+    printed = true;
+  }
 }
 
-/**
- * @brief Performs homing sequence using AS5600 absolute encoders
- * 
- * @usage Called once after system initialization or on homing request
- * @note With absolute encoders, homing mainly verifies safe position
- */
-// void performHoming() {
-//   // 1. Read all AS5600 encoders
-//   // 2. Check if within safe startup range
-//   // 3. If not, gently move to safe position
-//   // 4. Set zero offsets if needed
-// }
 
-/**
- * @brief Updates gravity compensation torques based on current arm pose
- * 
- * @usage Called in main control loop (20-100Hz)
- * @note Uses URDF-based calculations or empirical torque mapping
- */
-// void updateGravityCompensation() {
-//   // 1. Read all joint angles from AS5600 encoders
-//   // 2. Calculate required torques for base joints
-//   // 3. Apply torques via setTorque()
-// }
+void printOdriveCurrent(ODriveCAN* odrv, ODriveUserData &data, uint8_t node_id) {
+  if (odrv == nullptr) return;
 
+  Get_Iq_msg_t iq_msg;
+  if (odrv->getCurrents(iq_msg, 20)) {
+    data.last_iq_msg = iq_msg;
+    data.received_iq_current = true;
+    // SerialUSB1.print(iq_msg.Iq_Setpoint, 3);
+    SerialUSB1.print("[IQ] ODrive ");
+    SerialUSB1.print(node_id);
+    SerialUSB1.print(" measured: ");
+    SerialUSB1.print(iq_msg.Iq_Measured, 3);
+    SerialUSB1.println(" A");
+  } else {
+    SerialUSB1.print("[IQ] ODrive ");
+    SerialUSB1.print(node_id);
+    SerialUSB1.println(" getCurrents timeout");
+  }
+}
+
+bool printOdriveError(ODriveCAN* odrv, uint8_t node_id) {
+  if (odrv == nullptr) return false;
+
+  Get_Error_msg_t error_msg;
+  if (!odrv->getError(error_msg, 20)) {
+    SerialUSB1.print("[ERROR] ODrive ");
+    SerialUSB1.print(node_id);
+    SerialUSB1.println(" getError timeout");
+    return false;
+  }
+
+  SerialUSB1.print("[ODRIVE][ERROR] Node ");
+  SerialUSB1.print(node_id);
+  SerialUSB1.print(" active=0x");
+  SerialUSB1.print(error_msg.Active_Errors, HEX);
+  SerialUSB1.print(" disarm=0x");
+  SerialUSB1.println(error_msg.Disarm_Reason, HEX);
+
+  return error_msg.Active_Errors == 0 && error_msg.Disarm_Reason == 0;
+}

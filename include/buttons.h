@@ -1,3 +1,6 @@
+#ifndef BUTTONS_H
+#define BUTTONS_H
+
 #include <Arduino.h>
 
 typedef struct {
@@ -7,33 +10,20 @@ typedef struct {
     uint8_t lastButtonState; // Last state from button, active LOW
 } button_t;
 
+struct DebouncedButton {
+    int lastReading;
+    int stableState;
+    unsigned long lastDebounceTime;
+    const unsigned long debounceDelay = 50;
+};
+
 namespace buttonPins {
     extern button_t powerButton;
-    extern button_t autoHoming;
-    extern button_t triggerButton;
     extern button_t toolSelect;
+    extern button_t triggerInput;
 }
 
-typedef struct {
-  bool power_pressed  = false;
-  bool power_released = false;
+bool  isTriggerPressed(button_t* b);  // true while trigger is held (debounced, active-low)
+bool powerButtonWasPressed();
 
-  bool item_pressed   = false;
-  bool item_released  = false;
-
-  bool trigger_pressed  = false;
-  bool trigger_released = false;
-
-  bool home_pressed   = false;
-  bool home_released  = false;
-} ButtonEvents_t;
-
-void buttonInit(button_t* b);
-
-void buttonDetect(button_t* b);
-
-void buttonUpdate(button_t* b);
-
-namespace Buttons {
-    void setup();
-};
+#endif

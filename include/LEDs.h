@@ -1,4 +1,7 @@
+#pragma once
+
 #include <Arduino.h>
+#include "states.h"
 
 typedef enum {
     POWER,
@@ -8,14 +11,14 @@ typedef enum {
 
 typedef struct {
     uint8_t pin; // GPIO Pin #
-    ledType_e purpose; // LEDs will be OUTPUT
+    ledType_e type; // LEDs will be OUTPUT
     /* 
     uint8_t ledState; // Current button state
     uint8_t lastLedState; // Last state from button, active LOW
     */
 } led_t;
 
-namespace LED {
+namespace Led {
     /* Receiving satisfactory power for Teensy operation */
     extern led_t powerLED;
 
@@ -34,3 +37,5 @@ void initLED(led_t* l);
 void ONToggleLED(led_t* l);
 
 void OFFToggleLED(led_t* l);
+
+// LEDS_H

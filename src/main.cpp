@@ -1,63 +1,69 @@
+#include "states.h"
+
 #include <Arduino.h>
-#include <Wire.h>
-#include "i2c.h"
+#include "comms.h"
 #include "odrive.h"
-#include "buttons.h"
 #include "LEDs.h"
 #include "joint.h"
-
+#include "main.h"
+#include "states.h"
+#include "admittance_controller.h"
+#include <TeensyID.h>
+#include "USB.h"
+#include "buttons.h"
 
 void setup() {
-  if (!initMultiOdrives()) {
-    Serial.println("ODrive init failed — halting");
-    while (1);
-  }
+    // Initialize BOTH USB ports first, before anything else
+    Serial.begin(115200);
+    SerialUSB1.begin(115200);
 
-  Buttons::setup();
-  LED::setup();
-  ONToggleLED(&LED::powerLED);
-  ONToggleLED(&LED::dataLED);
+    // Guarantee LEDs configure
+    Led::setup();
 
-  // Initialize joints with hardware mapping
-  initJoints();
+    // Give USB stack time to fully enumerate BOTH ports
+    // 2000ms is conservative but reliable for dual serial
+    delay(2000);
+
+    // NOW it's safe to init joints, CAN, etc.
+    analogReadResolution(12); // 12-bit ADC (0–4095) for trigger threshold
+    initJoints();
+    preInitOdriveCallbacks();
+    // Initialize admittance model parameters once at boot.
+    initAdmittanceController();
+    if (!initCommunications()) {
+      SerialUSB1.println("Communication init failed");
+      while (true) {
+        delay(1000);
+      }
+    }
+
+    SerialUSB1.print("[SYS] USB serial: ");
+    SerialUSB1.println(teensyUsbSN());
+    SerialUSB1.println("[SYS] Startup complete");
+
 }
 
-/*
-Main loop moved here from i2c.cpp so this file is the sketch entry
-for runtime behavior. setup() remains implemented in odrive.cpp.
-*/
+
 void loop() {
-  // buttonDetect(&buttonPins::powerButton);
-  // buttonDetect(&buttonPins::autoHoming);
-  // buttonDetect(&buttonPins::triggerButton);
-  // buttonDetect(&buttonPins::toolSelect);
 
-  // Handle zero request from PC
-  // if (Serial.available()) {
-  //   char c = Serial.read();
-  //   if (c == 'z') {
-  //     for(int i = 0; i < 7; i++) {
-  //     zeroOffset[i] = 0;
-  //     turns[i] = 0;
-  //     }
-  //     Serial.println("Zeroed!");
-  //   }
-  // }
+  pumpEvents(can_intf);
+  // Poll for incoming USB packets and process them
+  pollSerialPackets();
+  processIncomingPackets();
 
-  readJointAnglesAndRaw();
+  // Poll trigger every loop so debounce state stays fresh in all states.
+  // Edge detection and packet sending happens inside stateUpdate via onTriggerEdge().
+  isTriggerPressed(&buttonPins::triggerInput);
 
-  float angle0 = getJoint(0)->angle;
-  float angle1 = getJoint(1)->angle;
+  state_e prevState = currState;
+  stateUpdate();
 
-  Serial.print("CH0: ");
-  Serial.println(angle0, 2);
-
-
-
-  // -------- SENSOR 0 SETUP --------
-  // tcaSelect(0);
-  // delayMicroseconds(500);
-  // uint16_t raw0 = readRawAS5600();
-  // float angle0 = computeAngle(0, raw0);
-
+  // Log state transitions to debug serial (PuTTY)
+  if (currState != prevState) {
+    SerialUSB1.print("STATE: ");
+    SerialUSB1.print(stateName(prevState));
+    SerialUSB1.print(" -> ");
+    SerialUSB1.println(stateName(currState));
+  }
+  
 }
