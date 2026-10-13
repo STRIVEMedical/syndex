@@ -1,6 +1,31 @@
 # STRIVE — Simulated Arm Mechanics Context File
->
-> Use this document when tuning KinematicsFollower, newGrabScript, or any arm/gripper simulation parameter.
+
+---
+
+## V2 (current): wireless handles + camera tracking
+
+> V2 firmware is at the **development stage**.
+
+**What changed from V1**
+
+| | V1 | V2 |
+|---|---|---|
+| Base | Teensy 4.1 on a base PCB, ODrive motors | Raspberry Pi 5 running a C++ program (CMake); no base PCB, no motors |
+| Input device | One motorized arm with joint encoders | Two free-floating, battery-powered wireless handles (ESP32-S3) |
+| Tracking | Joint angles J0-J5, forward kinematics in Unity | Camera XYZ of an 850 nm IR LED + handle IMU orientation = handle pose |
+| Link to Unity | USB serial, 115200 baud | Bluetooth Classic serial (SPP/RFCOMM), a COM port on Windows; laptop keeps its own WiFi (fallback: USB WiFi adapter + UDP) |
+| Handle link | none (arm is wired) | UDP, handle <-> Pi, on the Pi's own WiFi access point (handles only) |
+| Haptics | motors (admittance control) | vibration motor in each handle, event-based |
+
+---
+
+## V1 history
+
+Sections 1-10 below describe the **V1** arm (Teensy 4.1 + ODrive, USB, joint angles) and the Unity simulation tuned for it. They are kept for reference and have **not been updated for V2**. Sections 2-4 and 8 (hardware, joint mapping, USB protocol, command map) are V1-only.
+
+**OLD V1 STUFF BELOW THIS**
+
+**vvvvvvvvvvvvvvvvvvvvvvv**
 
 ---
 
