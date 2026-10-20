@@ -1,0 +1,62 @@
+[
+{
+  "directory": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build",
+  "command": "C:\\PROGRA~2\\MICROS~3\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\include -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\..\\shared /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd /W4 /FoCMakeFiles\\syndex_base.dir\\src\\main.cpp.obj /FdCMakeFiles\\syndex_base.dir\\ /FS -c C:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\src\\main.cpp",
+  "file": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/base/src/main.cpp",
+  "output": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/syndex_base.dir/src/main.cpp.obj"
+},
+{
+  "directory": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build",
+  "command": "C:\\PROGRA~2\\MICROS~3\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\include -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\..\\shared /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd /W4 /FoCMakeFiles\\syndex_base.dir\\src\\camera.cpp.obj /FdCMakeFiles\\syndex_base.dir\\ /FS -c C:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\src\\camera.cpp",
+  "file": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/base/src/camera.cpp",
+  "output": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/syndex_base.dir/src/camera.cpp.obj"
+},
+{
+  "directory": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build",
+  "command": "C:\\PROGRA~2\\MICROS~3\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\include -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\..\\shared /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd /W4 /FoCMakeFiles\\syndex_base.dir\\src\\led_detect.cpp.obj /FdCMakeFiles\\syndex_base.dir\\ /FS -c C:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\src\\led_detect.cpp",
+  "file": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/base/src/led_detect.cpp",
+  "output": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/syndex_base.dir/src/led_detect.cpp.obj"
+},
+{
+  "directory": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build",
+  "command": "C:\\PROGRA~2\\MICROS~3\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\include -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\..\\shared /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd /W4 /FoCMakeFiles\\syndex_base.dir\\src\\stereo.cpp.obj /FdCMakeFiles\\syndex_base.dir\\ /FS -c C:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\src\\stereo.cpp",
+  "file": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/base/src/stereo.cpp",
+  "output": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/syndex_base.dir/src/stereo.cpp.obj"
+},
+{
+  "directory": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build",
+  "command": "C:\\PROGRA~2\\MICROS~3\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\include -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\..\\shared /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd /W4 /FoCMakeFiles\\syndex_base.dir\\src\\pose.cpp.obj /FdCMakeFiles\\syndex_base.dir\\ /FS -c C:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\src\\pose.cpp",
+  "file": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/base/src/pose.cpp",
+  "output": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/syndex_base.dir/src/pose.cpp.obj"
+},
+{
+  "directory": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build",
+  "command": "C:\\PROGRA~2\\MICROS~3\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\include -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\..\\shared /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd /W4 /FoCMakeFiles\\syndex_base.dir\\src\\handle_link.cpp.obj /FdCMakeFiles\\syndex_base.dir\\ /FS -c C:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\src\\handle_link.cpp",
+  "file": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/base/src/handle_link.cpp",
+  "output": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/syndex_base.dir/src/handle_link.cpp.obj"
+},
+{
+  "directory": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build",
+  "command": "C:\\PROGRA~2\\MICROS~3\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\include -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\..\\shared /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd /W4 /FoCMakeFiles\\syndex_base.dir\\src\\unity_link.cpp.obj /FdCMakeFiles\\syndex_base.dir\\ /FS -c C:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\src\\unity_link.cpp",
+  "file": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/base/src/unity_link.cpp",
+  "output": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/syndex_base.dir/src/unity_link.cpp.obj"
+},
+{
+  "directory": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build",
+  "command": "C:\\PROGRA~2\\MICROS~3\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\include -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\..\\shared /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd /W4 /FoCMakeFiles\\syndex_base.dir\\src\\faults.cpp.obj /FdCMakeFiles\\syndex_base.dir\\ /FS -c C:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\src\\faults.cpp",
+  "file": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/base/src/faults.cpp",
+  "output": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/syndex_base.dir/src/faults.cpp.obj"
+},
+{
+  "directory": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build",
+  "command": "C:\\PROGRA~2\\MICROS~3\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\include -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\..\\shared /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd /W4 /FoCMakeFiles\\syndex_base.dir\\C_\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\shared\\serial_framing.cpp.obj /FdCMakeFiles\\syndex_base.dir\\ /FS -c C:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\shared\\serial_framing.cpp",
+  "file": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/shared/serial_framing.cpp",
+  "output": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/syndex_base.dir/C_/Users/ikepr/OneDrive/Documents/STRIVE/syndex/shared/serial_framing.cpp.obj"
+},
+{
+  "directory": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build",
+  "command": "C:\\PROGRA~2\\MICROS~3\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\include -IC:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\..\\shared /DWIN32 /D_WINDOWS /GR /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd /W4 /FoCMakeFiles\\syndex_calibrate.dir\\tools\\calibrate.cpp.obj /FdCMakeFiles\\syndex_calibrate.dir\\ /FS -c C:\\Users\\ikepr\\OneDrive\\Documents\\STRIVE\\syndex\\base\\tools\\calibrate.cpp",
+  "file": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/base/tools/calibrate.cpp",
+  "output": "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/syndex_calibrate.dir/tools/calibrate.cpp.obj"
+}
+]
