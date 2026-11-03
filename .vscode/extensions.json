@@ -7,5 +7,9 @@
     "unwantedRecommendations": [
         "ms-vscode.cpptools-extension-pack",
         "pioarduino.pioarduino-ide"
-    ]
+    ],
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/base/include",
+        "${workspaceFolder}/shared"
+    ],
 }

@@ -1,13 +1,16 @@
 #include <Arduino.h>
 #include "imu.h"
 
-void setup() {
+void setup()
+{
     Serial.begin(115200);
     delay(1000);
 
-    if (!initIMU()) {
+    if (!initIMU())
+    {
         Serial.println("BNO085 initialization failed");
-        while (true) {
+        while (true)
+        {
             delay(1000);
         }
     }
@@ -15,11 +18,13 @@ void setup() {
     Serial.println("BNO085 connected");
 }
 
-void loop() {
+void loop()
+{
     updateIMU();
 
     static unsigned long lastPrint = 0;
-    if (imuHasOrientation() && millis() - lastPrint >= 100) {
+    if (imuHasOrientation() && millis() - lastPrint >= 100)
+    {
         lastPrint = millis();
         ImuOrientation angles = getIMUOrientation();
 
