@@ -1,0 +1,69 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Debug-d0094a50bb2071803777.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.16"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "syndex_base",
+					"targetIndexes" : 
+					[
+						0,
+						1
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "syndex_base::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-syndex_base-Debug-f9448c8be50cda2993f4.json",
+					"name" : "syndex_base",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "syndex_calibrate::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-syndex_calibrate-Debug-06a1aef338209809c66e.json",
+					"name" : "syndex_calibrate",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build",
+		"source" : "C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/base"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 8
+	}
+}

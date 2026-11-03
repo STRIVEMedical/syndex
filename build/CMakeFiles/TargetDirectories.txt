@@ -1,0 +1,4 @@
+C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/syndex_base.dir
+C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/syndex_calibrate.dir
+C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/edit_cache.dir
+C:/Users/ikepr/OneDrive/Documents/STRIVE/syndex/build/CMakeFiles/rebuild_cache.dir
