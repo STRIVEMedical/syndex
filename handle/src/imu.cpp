@@ -68,6 +68,10 @@ void convertQuaternion(float w, float x, float y, float z, float accuracyRad) {
     orientation.pitch = pitch * degrees;
     orientation.yaw = yaw * degrees;
     orientation.accuracyRad = accuracyRad;
+    orientation.quat[0] = w;
+    orientation.quat[1] = x;
+    orientation.quat[2] = y;
+    orientation.quat[3] = z;
     hasOrientation = true;
 }
 }

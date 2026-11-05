@@ -73,7 +73,7 @@ struct __attribute__((packed)) handleStatePayload
   linkMeta meta;
   uint8_t flags; // HANDLE_FLAG_*
   uint32_t timestampMs;
-  float quat[4]; // orientation
+  float quat[4]; // orientation, in w, x, y, z order
   float gyro[3];
   float accel[3];
 };

@@ -12,7 +12,8 @@ struct ImuOrientation {
     float roll;
     float pitch;
     float yaw;
-    float accuracyRad = 0.0f; 
+    float accuracyRad = 0.0f;
+    float quat[4] = {}; // raw rotation vector, in w, x, y, z order
 };
 
 bool initIMU();
