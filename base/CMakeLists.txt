@@ -56,8 +56,10 @@ set(SYNDEX_BASE_SOURCES
 
 add_executable(syndex_base ${SYNDEX_BASE_SOURCES})
 add_executable(syndex_calibrate tools/calibrate.cpp)
+# Standalone Unity link test (fake position out, prints commands in).
+add_executable(syndex_unity_link_test tools/unity_link_test.cpp src/unity_link.cpp)
 
-foreach(tgt syndex_base syndex_calibrate)
+foreach(tgt syndex_base syndex_calibrate syndex_unity_link_test)
   target_include_directories(${tgt} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../shared)

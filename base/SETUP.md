@@ -77,6 +77,10 @@ shows up as a COM port, so Unity uses plain serial with V1-style framing + CRC.
 - **TODO:** make the Pi discoverable and pairable.
 - **TODO:** register the Serial Port (SPP) service.
 - **TODO:** pair the laptop from Windows Bluetooth settings.
+- Link code: `base/src/unity_link.cpp` (Pi, text lines `POS x y z` / `CMD id` over `/dev/rfcomm0`)
+  and `unity/PiBluetoothLinkSimple.cs` (Unity; needs .NET Framework API compatibility level).
+  After pairing, run `sudo rfcomm watch hci0 1` on the Pi, start Unity (set `portName`), then run
+  `base/build/syndex_unity_link_test` to see a fake position arrive in Unity.
 - **TODO:** find the COM port Windows assigns to the Pi (Device Manager / Bluetooth "More options").
 - Fallback (note only, not built): if Bluetooth is too slow, the laptop joins the Pi's network
   with a USB WiFi adapter and the Unity link uses UDP instead.
