@@ -58,8 +58,10 @@ add_executable(syndex_base ${SYNDEX_BASE_SOURCES})
 add_executable(syndex_calibrate tools/calibrate.cpp)
 # Standalone Unity link test (fake position out, prints commands in).
 add_executable(syndex_unity_link_test tools/unity_link_test.cpp src/unity_link.cpp)
+# IMU path bench test: handle UDP state in, "IMU ..." lines out over the Bluetooth link.
+add_executable(syndex_imu_bridge tools/imu_bridge.cpp src/handle_link.cpp src/unity_link.cpp)
 
-foreach(tgt syndex_base syndex_calibrate syndex_unity_link_test)
+foreach(tgt syndex_base syndex_calibrate syndex_unity_link_test syndex_imu_bridge)
   target_include_directories(${tgt} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../shared)

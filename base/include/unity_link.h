@@ -3,6 +3,8 @@
 //
 // Protocol (simple text lines, '\n' terminated):
 //   Pi -> Unity:  "POS x y z"      handle position
+//   Pi -> Unity:  "IMU <handle> <seq> <roll> <pitch> <yaw> <w> <x> <y> <z>"
+//                                  handle IMU orientation (degrees, then raw quaternion)
 //   Unity -> Pi:  "CMD <id>"       command with an integer id
 //   Pi -> Unity:  "ERR <message>"  error report (optional)
 // The V1-style binary framing (serial_framing.h) is NOT used by this link yet; switch to it later
@@ -26,6 +28,10 @@ bool unityLinkWaitForConnection(int timeoutMs = 30000);
 // Send the newest handle position. Returns false if not connected or the write failed.
 // TODO: take the pose type once pose.h defines it.
 bool unityLinkSendPose(float x, float y, float z);
+
+// Send one handle's IMU orientation as an "IMU ..." line. quat is w, x, y, z.
+bool unityLinkSendImu(unsigned handleId, unsigned seq, float roll, float pitch, float yaw,
+                      const float quat[4]);
 
 // Send "ERR <message>" to Unity.
 bool unityLinkSendError(const char* message);

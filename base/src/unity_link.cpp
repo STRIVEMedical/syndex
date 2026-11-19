@@ -100,6 +100,16 @@ bool unityLinkSendPose(float x, float y, float z) {
     return writeAll(out, static_cast<size_t>(n));
 }
 
+bool unityLinkSendImu(unsigned handleId, unsigned seq, float roll, float pitch, float yaw,
+                      const float quat[4]) {
+    if (g_fd < 0) return false;
+    char out[160];
+    int n = std::snprintf(out, sizeof out, "IMU %u %u %.1f %.1f %.1f %.4f %.4f %.4f %.4f\n",
+                          handleId, seq, roll, pitch, yaw, quat[0], quat[1], quat[2], quat[3]);
+    if (n <= 0) return false;
+    return writeAll(out, static_cast<size_t>(n));
+}
+
 bool unityLinkSendError(const char* message) {
     if (g_fd < 0) return false;
     std::string out = std::string("ERR ") + message + "\n";
